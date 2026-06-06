@@ -97,6 +97,7 @@ impl TextEditorApp {
     }
 
     fn rebuild_text_items(&mut self) {
+        self.editor.prepare_text(&mut self.font_system);
         self.text_items.clear();
         let mut labels = Vec::new();
 
@@ -122,10 +123,16 @@ impl TextEditorApp {
 
         // 3. Editor text labels
         let font_family = self.editor.font_family.clone();
-        for label in self.editor.text_labels() {
+        for (label, bounds) in self.editor.text_labels_with_bounds() {
             let metrics = Metrics::new(label.font_size, label.font_size * 1.4);
             let mut buf = Buffer::new(&mut self.font_system, metrics);
-            let attrs = Attrs::new().family(glyphon::Family::Name(&font_family));
+            let family_val = match font_family.as_str() {
+                "monospace" => glyphon::Family::Monospace,
+                "sans-serif" => glyphon::Family::SansSerif,
+                "serif" => glyphon::Family::Serif,
+                _ => glyphon::Family::Name(&font_family),
+            };
+            let attrs = Attrs::new().family(family_val);
             buf.set_text(&mut self.font_system, &label.text, attrs, glyphon::Shaping::Advanced);
             buf.shape_until_scroll(&mut self.font_system, true);
             self.text_items.push(TextItem {
@@ -133,6 +140,7 @@ impl TextEditorApp {
                 x: label.x,
                 y: label.y,
                 color: glyphon::Color::rgb(label.color[0], label.color[1], label.color[2]),
+                bounds,
             });
         }
 
@@ -163,6 +171,7 @@ impl TextEditorApp {
                 x: label.x,
                 y: label.y,
                 color: glyphon::Color::rgb(label.color[0], label.color[1], label.color[2]),
+                bounds: None,
             });
         }
     }
