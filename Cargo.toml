@@ -1,5 +1,5 @@
 [package]
-name = "clear-text-editor"
+name = "cce-text-editor"
 version = "0.1.0"
 edition = "2021"
 

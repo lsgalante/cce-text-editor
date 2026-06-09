@@ -5,7 +5,7 @@ build:
 
 install: build
 	mkdir -p ~/.local/bin
-	install -m 755 target/release/clear-text-editor ~/.local/bin/clear-text-editor
+	install -m 755 target/release/cce-text-editor ~/.local/bin/cce-text-editor
 
 run:
 	cargo run

@@ -36,6 +36,7 @@ struct TextEditorApp {
     text_items: Vec<TextItem>,
     font_system: FontSystem,
     needs_rebuild: bool,
+    ui_context: clear_ui::context::UiContext,
 }
 
 impl TextEditorApp {
@@ -123,7 +124,7 @@ impl TextEditorApp {
 
         // 3. Editor text labels
         let font_family = self.editor.font_family.clone();
-        for (label, bounds) in self.editor.text_labels_with_bounds() {
+        for (label, bounds) in self.editor.text_labels_with_bounds(&self.ui_context) {
             let metrics = Metrics::new(label.font_size, label.font_size * 1.4);
             let mut buf = Buffer::new(&mut self.font_system, metrics);
             let family_val = match font_family.as_str() {
@@ -223,13 +224,14 @@ impl Application for TextEditorApp {
             text_items: Vec::new(),
             font_system: FontSystem::new(),
             needs_rebuild: true,
+            ui_context: clear_ui::context::UiContext::new(),
         }
     }
 
     fn settings(&self) -> WindowSettings {
         WindowSettings {
             title: "Clear Text Editor".to_string(),
-            app_id: "clear-text-editor".to_string(),
+            app_id: "cce-text-editor".to_string(),
             width: 800,
             height: 600,
             fullscreen: false,
@@ -345,13 +347,13 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
-        if self.btn_new.on_cursor_moved(px, py) { changed = true; }
-        if self.btn_open.on_cursor_moved(px, py) { changed = true; }
-        if self.btn_save.on_cursor_moved(px, py) { changed = true; }
-        if self.btn_save_as.on_cursor_moved(px, py) { changed = true; }
-        if self.btn_exit.on_cursor_moved(px, py) { changed = true; }
+        if self.btn_new.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
+        if self.btn_open.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
+        if self.btn_save.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
+        if self.btn_save_as.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
+        if self.btn_exit.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
         
-        if self.editor.on_cursor_moved(px, py) { changed = true; }
+        if self.editor.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
 
         if changed {
             *needs_rebuild = true;
@@ -365,38 +367,38 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
-        if self.btn_new.mouse_input(button, state, px, py) {
+        if self.btn_new.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
             if state == ElementState::Released && self.btn_new.take_click() {
                 msg_out = Some(AppMessage::NewDocument);
             }
         }
-        if self.btn_open.mouse_input(button, state, px, py) {
+        if self.btn_open.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
             if state == ElementState::Released && self.btn_open.take_click() {
                 msg_out = Some(AppMessage::OpenDocument);
             }
         }
-        if self.btn_save.mouse_input(button, state, px, py) {
+        if self.btn_save.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
             if state == ElementState::Released && self.btn_save.take_click() {
                 msg_out = Some(AppMessage::SaveDocument);
             }
         }
-        if self.btn_save_as.mouse_input(button, state, px, py) {
+        if self.btn_save_as.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
             if state == ElementState::Released && self.btn_save_as.take_click() {
                 msg_out = Some(AppMessage::SaveDocumentAs);
             }
         }
-        if self.btn_exit.mouse_input(button, state, px, py) {
+        if self.btn_exit.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
             if state == ElementState::Released && self.btn_exit.take_click() {
                 msg_out = Some(AppMessage::Exit);
             }
         }
 
-        if self.editor.mouse_input(button, state, px, py) {
+        if self.editor.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
         } else if state == ElementState::Pressed && button == MouseButton::Left {
             self.editor.unfocus();
@@ -443,7 +445,7 @@ impl Application for TextEditorApp {
         }
 
         if !handled {
-            if self.editor.keyboard_input(event) {
+            if self.editor.keyboard_input(event, &mut self.ui_context) {
                 handled = true;
             }
         }
