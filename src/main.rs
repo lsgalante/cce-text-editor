@@ -41,11 +41,11 @@ struct TextEditorApp {
 
 impl TextEditorApp {
     fn pick_file_to_open(&self) -> Option<std::path::PathBuf> {
-        let output = std::process::Command::new("/home/lsgalante/.local/bin/clear-filesystem-interface")
+        let output = std::process::Command::new("/home/lsgalante/.local/bin/cce-filesystem-interface")
             .arg("--select")
             .output()
             .or_else(|_| {
-                std::process::Command::new("clear-filesystem-interface")
+                std::process::Command::new("cce-filesystem-interface")
                     .arg("--select")
                     .output()
             })
@@ -62,11 +62,11 @@ impl TextEditorApp {
     }
 
     fn perform_save_as(&mut self, needs_rebuild: &mut bool) {
-        let path_opt = std::process::Command::new("/home/lsgalante/.local/bin/clear-filesystem-interface")
+        let path_opt = std::process::Command::new("/home/lsgalante/.local/bin/cce-filesystem-interface")
             .arg("--save")
             .output()
             .or_else(|_| {
-                std::process::Command::new("clear-filesystem-interface")
+                std::process::Command::new("cce-filesystem-interface")
                     .arg("--save")
                     .output()
             })
@@ -100,6 +100,7 @@ impl TextEditorApp {
     fn rebuild_text_items(&mut self) {
         self.editor.prepare_text(&mut self.font_system);
         self.text_items.clear();
+        let scale = clear_ui::scale::scale_factor();
         let mut labels = Vec::new();
 
         // 1. Button labels
@@ -125,10 +126,11 @@ impl TextEditorApp {
         // 3. Editor text labels
         let font_family = self.editor.font_family.clone();
         for (label, bounds) in self.editor.text_labels_with_bounds(&self.ui_context) {
-            let metrics = Metrics::new(label.font_size, label.font_size * 1.4);
+            let physical_size = label.font_size * scale;
+            let metrics = Metrics::new(physical_size, physical_size * 1.4);
             let mut buf = Buffer::new(&mut self.font_system, metrics);
             let family_val = match font_family.as_str() {
-                "monospace" => glyphon::Family::Monospace,
+                "monospace" => glyphon::Family::Name(clear_ui::layout::get_system_monospace_font()),
                 "sans-serif" => glyphon::Family::SansSerif,
                 "serif" => glyphon::Family::Serif,
                 _ => glyphon::Family::Name(&font_family),
@@ -163,7 +165,8 @@ impl TextEditorApp {
 
         // 5. Build static text items
         for label in labels {
-            let metrics = Metrics::new(label.font_size, label.font_size * 1.4);
+            let physical_size = label.font_size * scale;
+            let metrics = Metrics::new(physical_size, physical_size * 1.4);
             let mut buf = Buffer::new(&mut self.font_system, metrics);
             buf.set_text(&mut self.font_system, &label.text, Attrs::new(), glyphon::Shaping::Advanced);
             buf.shape_until_scroll(&mut self.font_system, true);
@@ -222,7 +225,11 @@ impl Application for TextEditorApp {
             height: 600,
             scale_factor: 1.0,
             text_items: Vec::new(),
-            font_system: FontSystem::new(),
+            font_system: {
+                let mut fs = FontSystem::new();
+                fs.db_mut().load_fonts_dir("/home/lsgalante/Dropbox/Fonts");
+                fs
+            },
             needs_rebuild: true,
             ui_context: clear_ui::context::UiContext::new(),
         }
