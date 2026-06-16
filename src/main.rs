@@ -37,6 +37,9 @@ struct TextEditorApp {
     font_system: FontSystem,
     needs_rebuild: bool,
     ui_context: clear_ui::context::UiContext,
+    ctrl_pressed: bool,
+    initial_focus: bool,
+    status_message: Option<(String, bool)>,
 }
 
 impl TextEditorApp {
@@ -87,12 +90,21 @@ impl TextEditorApp {
 
         if let Some(path) = path_opt {
             let content = if self.editor.editing { &self.editor.edit_buffer } else { &self.editor.text };
-            if let Err(e) = std::fs::write(&path, content) {
-                eprintln!("Error saving file: {}", e);
-            } else {
-                self.current_file_path = Some(path);
-                *needs_rebuild = true;
-                self.needs_rebuild = true;
+            match std::fs::write(&path, content) {
+                Ok(_) => {
+                    self.current_file_path = Some(path.clone());
+                    if self.editor.editing {
+                        self.editor.text = self.editor.edit_buffer.clone();
+                    }
+                    self.status_message = Some((format!("Saved successfully to {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
+                    *needs_rebuild = true;
+                    self.needs_rebuild = true;
+                }
+                Err(e) => {
+                    self.status_message = Some((format!("Error saving file: {}", e), true));
+                    *needs_rebuild = true;
+                    self.needs_rebuild = true;
+                }
             }
         }
     }
@@ -111,12 +123,22 @@ impl TextEditorApp {
         labels.extend(self.btn_exit.text_labels());
 
         // 2. File path info in the toolbar
+        let is_dirty = if self.editor.editing {
+            self.editor.text != self.editor.edit_buffer
+        } else {
+            false
+        };
         let file_name_str = match &self.current_file_path {
             Some(path) => path.file_name().unwrap_or_default().to_string_lossy().into_owned(),
             None => "Untitled".to_string(),
         };
+        let display_name = if is_dirty {
+            format!("*{}", file_name_str)
+        } else {
+            file_name_str
+        };
         labels.push(TextLabel {
-            text: format!("File: {}", file_name_str),
+            text: format!("File: {}", display_name),
             x: 420.0,
             y: 15.0,
             font_size: 12.0,
@@ -149,19 +171,38 @@ impl TextEditorApp {
 
         // 4. Status Bar indicators
         let text_src = if self.editor.editing { &self.editor.edit_buffer } else { &self.editor.text };
-        let char_width = self.editor.font_size * 0.6;
-        let max_chars = (((self.editor.rect().2 - 16.0) / char_width).floor() as usize).max(1);
-        let (_, index_map) = self.editor.wrap_text(max_chars);
-        let cursor_idx = self.editor.cursor_idx.min(index_map.len() - 1);
-        let (line, col) = index_map[cursor_idx];
+        let mut logical_line = 1;
+        let mut logical_col = 1;
+        for (idx, ch) in text_src.chars().enumerate() {
+            if idx >= self.editor.cursor_idx {
+                break;
+            }
+            if ch == '\n' {
+                logical_line += 1;
+                logical_col = 1;
+            } else {
+                logical_col += 1;
+            }
+        }
 
         labels.push(TextLabel {
-            text: format!("Line: {}, Col: {} | Length: {} chars", line + 1, col + 1, text_src.chars().count()),
+            text: format!("Line: {}, Col: {} | Length: {} chars", logical_line, logical_col, text_src.chars().count()),
             x: 15.0,
             y: self.height as f32 - 20.0,
             font_size: 11.0,
             color: [0x83, 0x83, 0x8a],
         });
+
+        if let Some((msg, is_error)) = &self.status_message {
+            let color = if *is_error { [0xfa, 0x52, 0x52] } else { [0x40, 0xc0, 0x57] };
+            labels.push(TextLabel {
+                text: msg.clone(),
+                x: (self.width as f32 - 400.0).max(300.0),
+                y: self.height as f32 - 20.0,
+                font_size: 11.0,
+                color,
+            });
+        }
 
         // 5. Build static text items
         for label in labels {
@@ -232,6 +273,9 @@ impl Application for TextEditorApp {
             },
             needs_rebuild: true,
             ui_context: clear_ui::context::UiContext::new(),
+            ctrl_pressed: false,
+            initial_focus: true,
+            status_message: None,
         }
     }
 
@@ -258,6 +302,11 @@ impl Application for TextEditorApp {
                 self.editor.cursor_idx = 0;
                 self.editor.select_anchor = None;
                 self.current_file_path = None;
+                self.status_message = None;
+
+                self.ui_context.set_focused(&mut self.editor);
+                TextBox::focus(&mut self.editor);
+
                 *needs_rebuild = true;
                 self.needs_rebuild = true;
             }
@@ -270,10 +319,14 @@ impl Application for TextEditorApp {
                             self.editor.cursor_idx = 0;
                             self.editor.select_anchor = None;
                             self.editor.editing = false;
-                            self.current_file_path = Some(path);
+                            self.current_file_path = Some(path.clone());
+                            self.status_message = Some((format!("Opened {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
+
+                            self.ui_context.set_focused(&mut self.editor);
+                            TextBox::focus(&mut self.editor);
                         }
                         Err(e) => {
-                            eprintln!("Error opening file: {}", e);
+                            self.status_message = Some((format!("Error opening file: {}", e), true));
                         }
                     }
                     *needs_rebuild = true;
@@ -284,9 +337,19 @@ impl Application for TextEditorApp {
                 if self.current_file_path.is_some() {
                     let path = self.current_file_path.clone().unwrap();
                     let content = if self.editor.editing { &self.editor.edit_buffer } else { &self.editor.text };
-                    if let Err(e) = std::fs::write(&path, content) {
-                        eprintln!("Error saving file: {}", e);
+                    match std::fs::write(&path, content) {
+                        Ok(_) => {
+                            if self.editor.editing {
+                                self.editor.text = self.editor.edit_buffer.clone();
+                            }
+                            self.status_message = Some((format!("Saved successfully to {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
+                        }
+                        Err(e) => {
+                            self.status_message = Some((format!("Error saving file: {}", e), true));
+                        }
                     }
+                    *needs_rebuild = true;
+                    self.needs_rebuild = true;
                 } else {
                     self.perform_save_as(needs_rebuild);
                 }
@@ -300,6 +363,12 @@ impl Application for TextEditorApp {
     fn tick(&mut self, _dt: f32, _needs_rebuild: &mut bool) {}
 
     fn view(&mut self, quads: &mut Vec<(f32, f32, f32, f32, [f32; 4])>, size: LogicalSize, scale: f64) {
+        if self.initial_focus {
+            self.initial_focus = false;
+            self.ui_context.set_focused(&mut self.editor);
+            TextBox::focus(&mut self.editor);
+            self.needs_rebuild = true;
+        }
         let size_changed = self.width != size.width as u32 || self.height != size.height as u32 || self.scale_factor != scale;
         if self.needs_rebuild || size_changed {
             self.width = size.width as u32;
@@ -420,9 +489,41 @@ impl Application for TextEditorApp {
         msg_out
     }
 
-    fn handle_mouse_wheel(&mut self, _delta: &MouseScrollDelta, _pos: LogicalPosition, _needs_rebuild: &mut bool) {}
+    fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, _pos: LogicalPosition, needs_rebuild: &mut bool) {
+        if self.ctrl_pressed {
+            match delta {
+                MouseScrollDelta::LineDelta(_, y) => {
+                    if *y > 0.0 {
+                        self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
+                    } else if *y < 0.0 {
+                        self.editor.font_size = (self.editor.font_size - 1.0).max(6.0);
+                    }
+                    *needs_rebuild = true;
+                    self.needs_rebuild = true;
+                }
+                MouseScrollDelta::PixelDelta(pos) => {
+                    if pos.y > 0.0 {
+                        self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
+                    } else if pos.y < 0.0 {
+                        self.editor.font_size = (self.editor.font_size - 1.0).max(6.0);
+                    }
+                    *needs_rebuild = true;
+                    self.needs_rebuild = true;
+                }
+            }
+        }
+    }
 
     fn handle_key_input(&mut self, event: &KeyEvent, needs_rebuild: &mut bool) -> Option<Self::Message> {
+        self.ctrl_pressed = event.ctrl;
+
+        // Clear status message when typing/key press occurs
+        if event.state == ElementState::Pressed && self.status_message.is_some() {
+            self.status_message = None;
+            *needs_rebuild = true;
+            self.needs_rebuild = true;
+        }
+
         let mut handled = false;
         let mut msg_out = None;
 
@@ -444,6 +545,18 @@ impl Application for TextEditorApp {
                     }
                     "q" => {
                         msg_out = Some(AppMessage::Exit);
+                        handled = true;
+                    }
+                    "=" | "+" => {
+                        self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
+                        *needs_rebuild = true;
+                        self.needs_rebuild = true;
+                        handled = true;
+                    }
+                    "-" | "_" => {
+                        self.editor.font_size = (self.editor.font_size - 1.0).max(6.0);
+                        *needs_rebuild = true;
+                        self.needs_rebuild = true;
                         handled = true;
                     }
                     _ => {}
