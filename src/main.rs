@@ -1,7 +1,7 @@
 use wayland_client::QueueHandle;
 use glyphon::{FontSystem, Buffer, Metrics, Attrs};
-use clear_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
-use clear_ui::widget::{
+use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
+use cce_ui::widget::{
     MouseButton, ElementState, MouseScrollDelta, KeyEvent, TextItem, Element,
     TextBox, Button, TextLabel, Key
 };
@@ -36,7 +36,7 @@ struct TextEditorApp {
     text_items: Vec<TextItem>,
     font_system: FontSystem,
     needs_rebuild: bool,
-    ui_context: clear_ui::context::UiContext,
+    ui_context: cce_ui::context::UiContext,
     ctrl_pressed: bool,
     initial_focus: bool,
     status_message: Option<(String, bool)>,
@@ -112,7 +112,7 @@ impl TextEditorApp {
     fn rebuild_text_items(&mut self) {
         self.editor.prepare_text(&mut self.font_system);
         self.text_items.clear();
-        let scale = clear_ui::scale::scale_factor();
+        let scale = cce_ui::scale::scale_factor();
         let mut labels = Vec::new();
 
         // 1. Button labels
@@ -152,7 +152,7 @@ impl TextEditorApp {
             let metrics = Metrics::new(physical_size, physical_size * 1.4);
             let mut buf = Buffer::new(&mut self.font_system, metrics);
             let family_val = match font_family.as_str() {
-                "monospace" => glyphon::Family::Name(clear_ui::layout::get_system_monospace_font()),
+                "monospace" => glyphon::Family::Name(cce_ui::layout::get_system_monospace_font()),
                 "sans-serif" => glyphon::Family::SansSerif,
                 "serif" => glyphon::Family::Serif,
                 _ => glyphon::Family::Name(&font_family),
@@ -272,7 +272,7 @@ impl Application for TextEditorApp {
                 fs
             },
             needs_rebuild: true,
-            ui_context: clear_ui::context::UiContext::new(),
+            ui_context: cce_ui::context::UiContext::new(),
             ctrl_pressed: false,
             initial_focus: true,
             status_message: None,
@@ -583,5 +583,5 @@ fn main() {
     let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
     let _guard = rt.enter();
     
-    clear_ui::engine::run::<TextEditorApp>();
+    cce_ui::engine::run::<TextEditorApp>();
 }
