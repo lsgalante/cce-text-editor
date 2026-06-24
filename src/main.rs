@@ -225,6 +225,10 @@ impl TextEditorApp {
 impl Application for TextEditorApp {
     type Message = AppMessage;
 
+    fn ui_context(&self) -> Option<&cce_ui::context::UiContext> {
+        Some(&self.ui_context)
+    }
+
     fn new(_qh: &QueueHandle<EngineState<Self>>, _sender: calloop::channel::Sender<Self::Message>) -> Self {
         let btn_new = Button::new(10.0, 8.0, 70.0, 26.0).with_label("New");
         let btn_open = Button::new(90.0, 8.0, 70.0, 26.0).with_label("Open");
