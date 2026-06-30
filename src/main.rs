@@ -44,11 +44,11 @@ struct TextEditorApp {
 
 impl TextEditorApp {
     fn pick_file_to_open(&self) -> Option<std::path::PathBuf> {
-        let output = std::process::Command::new("/home/lsgalante/.local/bin/cce-filesystem-interface")
+        let output = std::process::Command::new("/home/lsgalante/.local/bin/cce-files")
             .arg("--select")
             .output()
             .or_else(|_| {
-                std::process::Command::new("cce-filesystem-interface")
+                std::process::Command::new("cce-files")
                     .arg("--select")
                     .output()
             })
@@ -65,11 +65,11 @@ impl TextEditorApp {
     }
 
     fn perform_save_as(&mut self, needs_rebuild: &mut bool) {
-        let path_opt = std::process::Command::new("/home/lsgalante/.local/bin/cce-filesystem-interface")
+        let path_opt = std::process::Command::new("/home/lsgalante/.local/bin/cce-files")
             .arg("--save")
             .output()
             .or_else(|_| {
-                std::process::Command::new("cce-filesystem-interface")
+                std::process::Command::new("cce-files")
                     .arg("--save")
                     .output()
             })
