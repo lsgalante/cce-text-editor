@@ -153,7 +153,7 @@ impl TextEditorApp {
             let mut buf = Buffer::new(&mut self.font_system, metrics);
             let family_val = match font_family.as_str() {
                 "monospace" => glyphon::Family::Name(cce_ui::layout::get_system_monospace_font()),
-                "sans-serif" => glyphon::Family::SansSerif,
+                "sans-serif" => glyphon::Family::Name(cce_ui::layout::get_system_monospace_font()),
                 "serif" => glyphon::Family::Serif,
                 _ => glyphon::Family::Name(&font_family),
             };
@@ -209,7 +209,9 @@ impl TextEditorApp {
             let physical_size = label.font_size * scale;
             let metrics = Metrics::new(physical_size, physical_size * 1.4);
             let mut buf = Buffer::new(&mut self.font_system, metrics);
-            buf.set_text(&mut self.font_system, &label.text, Attrs::new(), glyphon::Shaping::Advanced);
+            let family_val = glyphon::Family::Name(cce_ui::layout::get_system_monospace_font());
+            let attrs = Attrs::new().family(family_val);
+            buf.set_text(&mut self.font_system, &label.text, attrs, glyphon::Shaping::Advanced);
             buf.shape_until_scroll(&mut self.font_system, true);
             self.text_items.push(TextItem {
                 buffer: buf,
