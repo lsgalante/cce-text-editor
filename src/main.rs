@@ -229,6 +229,10 @@ impl Application for TextEditorApp {
         Some(&self.ui_context)
     }
 
+    fn ui_context_mut(&mut self) -> Option<&mut cce_ui::context::UiContext> {
+        Some(&mut self.ui_context)
+    }
+
     fn new(_qh: &QueueHandle<EngineState<Self>>, _sender: calloop::channel::Sender<Self::Message>) -> Self {
         let btn_new = Button::new(10.0, 8.0, 70.0, 26.0).with_label("New");
         let btn_open = Button::new(90.0, 8.0, 70.0, 26.0).with_label("Open");
@@ -408,14 +412,23 @@ impl Application for TextEditorApp {
         quads.push((0.0, status_y, self.width as f32, 1.0, [0.18, 0.18, 0.22, 1.0]));
 
         // 4. Buttons graphics
-        quads.extend(self.btn_new.extra_quads());
-        quads.extend(self.btn_open.extra_quads());
-        quads.extend(self.btn_save.extra_quads());
-        quads.extend(self.btn_save_as.extra_quads());
-        quads.extend(self.btn_exit.extra_quads());
+        quads.extend(self.btn_new.all_quads(&self.ui_context));
+        quads.extend(self.btn_open.all_quads(&self.ui_context));
+        quads.extend(self.btn_save.all_quads(&self.ui_context));
+        quads.extend(self.btn_save_as.all_quads(&self.ui_context));
+        quads.extend(self.btn_exit.all_quads(&self.ui_context));
 
         // 5. TextBox Editor graphics
-        quads.extend(self.editor.extra_quads());
+        quads.extend(self.editor.all_quads(&self.ui_context));
+    }
+
+    fn view_rounded_quads(&mut self, quads: &mut Vec<(f32, f32, f32, f32, f32, [f32; 4], (bool, bool, bool, bool))>, _size: LogicalSize, _scale: f64) {
+        quads.extend(self.btn_new.all_rounded_quads(&self.ui_context));
+        quads.extend(self.btn_open.all_rounded_quads(&self.ui_context));
+        quads.extend(self.btn_save.all_rounded_quads(&self.ui_context));
+        quads.extend(self.btn_save_as.all_rounded_quads(&self.ui_context));
+        quads.extend(self.btn_exit.all_rounded_quads(&self.ui_context));
+        quads.extend(self.editor.all_rounded_quads(&self.ui_context));
     }
 
     fn text_items(&self) -> &[TextItem] {
