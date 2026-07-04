@@ -3,7 +3,7 @@ use glyphon::{FontSystem, Buffer, Metrics, Attrs};
 use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::widget::{
     MouseButton, ElementState, MouseScrollDelta, KeyEvent, TextItem, Element,
-    TextBox, Button, TextLabel, Key
+    TextBox, TextLabel, Key, Dropdown
 };
 
 #[derive(Debug, Clone)]
@@ -16,12 +16,8 @@ enum AppMessage {
 }
 
 struct TextEditorApp {
-    // Buttons
-    btn_new: Button,
-    btn_open: Button,
-    btn_save: Button,
-    btn_save_as: Button,
-    btn_exit: Button,
+    // File menu dropdown
+    menu_dropdown: Dropdown,
     
     // Editor TextBox
     editor: TextBox,
@@ -115,12 +111,8 @@ impl TextEditorApp {
         let scale = cce_ui::scale::scale_factor();
         let mut labels = Vec::new();
 
-        // 1. Button labels
-        labels.extend(self.btn_new.text_labels());
-        labels.extend(self.btn_open.text_labels());
-        labels.extend(self.btn_save.text_labels());
-        labels.extend(self.btn_save_as.text_labels());
-        labels.extend(self.btn_exit.text_labels());
+        // 1. Menu dropdown labels
+        labels.extend(self.menu_dropdown.text_labels());
 
         // 2. File path info in the toolbar
         let is_dirty = if self.editor.editing {
@@ -236,11 +228,16 @@ impl Application for TextEditorApp {
     }
 
     fn new(_qh: &QueueHandle<EngineState<Self>>, _sender: calloop::channel::Sender<Self::Message>) -> Self {
-        let btn_new = Button::new(10.0, 8.0, 70.0, 26.0).with_label("New");
-        let btn_open = Button::new(90.0, 8.0, 70.0, 26.0).with_label("Open");
-        let btn_save = Button::new(170.0, 8.0, 70.0, 26.0).with_label("Save");
-        let btn_save_as = Button::new(250.0, 8.0, 75.0, 26.0).with_label("Save As");
-        let btn_exit = Button::new(335.0, 8.0, 70.0, 26.0).with_label("Exit");
+        let dropdown_options = vec![
+            "New".to_string(),
+            "Open...".to_string(),
+            "Save".to_string(),
+            "Save As...".to_string(),
+            "-".to_string(),
+            "Exit".to_string(),
+        ];
+        let mut menu_dropdown = Dropdown::new(dropdown_options, 0).with_custom_display_text("File");
+        menu_dropdown.set_rect(10.0, 8.0, 70.0, 26.0);
 
         // Monospace textbox setup
         let mut editor = TextBox::new(String::new())
@@ -265,11 +262,7 @@ impl Application for TextEditorApp {
         }
 
         Self {
-            btn_new,
-            btn_open,
-            btn_save,
-            btn_save_as,
-            btn_exit,
+            menu_dropdown,
             editor,
             current_file_path,
             width: 800,
@@ -385,12 +378,8 @@ impl Application for TextEditorApp {
             self.height = size.height as u32;
             self.scale_factor = scale;
 
-            // Set button dimensions and coordinates
-            self.btn_new.set_rect(10.0, 8.0, 70.0, 26.0);
-            self.btn_open.set_rect(90.0, 8.0, 70.0, 26.0);
-            self.btn_save.set_rect(170.0, 8.0, 70.0, 26.0);
-            self.btn_save_as.set_rect(250.0, 8.0, 75.0, 26.0);
-            self.btn_exit.set_rect(335.0, 8.0, 70.0, 26.0);
+            // Set menu dropdown dimensions and coordinates
+            self.menu_dropdown.set_rect(10.0, 8.0, 70.0, 26.0);
 
             // TextBox occupies the remaining space between the top bar and status bar
             let editor_w = (self.width as f32 - 20.0).max(100.0);
@@ -413,24 +402,28 @@ impl Application for TextEditorApp {
         quads.push((0.0, status_y, self.width as f32, 30.0, [0.08, 0.08, 0.10, 1.0]));
         quads.push((0.0, status_y, self.width as f32, 1.0, [0.18, 0.18, 0.22, 1.0]));
 
-        // 4. Buttons graphics
-        quads.extend(self.btn_new.all_quads(&self.ui_context));
-        quads.extend(self.btn_open.all_quads(&self.ui_context));
-        quads.extend(self.btn_save.all_quads(&self.ui_context));
-        quads.extend(self.btn_save_as.all_quads(&self.ui_context));
-        quads.extend(self.btn_exit.all_quads(&self.ui_context));
+        // 4. Menu dropdown graphics
+        quads.extend(self.menu_dropdown.all_quads(&self.ui_context));
 
         // 5. TextBox Editor graphics
         quads.extend(self.editor.all_quads(&self.ui_context));
+
+        // 6. Popovers registration (since this app bypasses the layout engine)
+        self.ui_context.clear_popovers();
+        cce_ui::widget::popovers::clear();
+        if self.menu_dropdown.popover_rect().is_some() {
+            self.ui_context.register_popover(&self.menu_dropdown);
+            cce_ui::widget::popovers::register(&self.menu_dropdown);
+        }
     }
 
     fn view_rounded_quads(&mut self, quads: &mut Vec<(f32, f32, f32, f32, f32, [f32; 4], (bool, bool, bool, bool))>, _size: LogicalSize, _scale: f64) {
-        quads.extend(self.btn_new.all_rounded_quads(&self.ui_context));
-        quads.extend(self.btn_open.all_rounded_quads(&self.ui_context));
-        quads.extend(self.btn_save.all_rounded_quads(&self.ui_context));
-        quads.extend(self.btn_save_as.all_rounded_quads(&self.ui_context));
-        quads.extend(self.btn_exit.all_rounded_quads(&self.ui_context));
+        quads.extend(self.menu_dropdown.all_rounded_quads(&self.ui_context));
         quads.extend(self.editor.all_rounded_quads(&self.ui_context));
+    }
+
+    fn render_popovers(&self, pc: &mut dyn cce_ui::layout::RenderTarget) {
+        cce_ui::layout::render_popovers(pc, &self.ui_context);
     }
 
     fn text_items(&self) -> &[TextItem] {
@@ -442,11 +435,7 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
-        if self.btn_new.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
-        if self.btn_open.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
-        if self.btn_save.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
-        if self.btn_save_as.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
-        if self.btn_exit.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
+        if self.menu_dropdown.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
         
         if self.editor.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
 
@@ -462,34 +451,31 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
-        if self.btn_new.mouse_input(button, state, px, py, &mut self.ui_context) {
+        if self.menu_dropdown.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
-            if state == ElementState::Released && self.btn_new.take_click() {
-                msg_out = Some(AppMessage::NewDocument);
-            }
-        }
-        if self.btn_open.mouse_input(button, state, px, py, &mut self.ui_context) {
-            changed = true;
-            if state == ElementState::Released && self.btn_open.take_click() {
-                msg_out = Some(AppMessage::OpenDocument);
-            }
-        }
-        if self.btn_save.mouse_input(button, state, px, py, &mut self.ui_context) {
-            changed = true;
-            if state == ElementState::Released && self.btn_save.take_click() {
-                msg_out = Some(AppMessage::SaveDocument);
-            }
-        }
-        if self.btn_save_as.mouse_input(button, state, px, py, &mut self.ui_context) {
-            changed = true;
-            if state == ElementState::Released && self.btn_save_as.take_click() {
-                msg_out = Some(AppMessage::SaveDocumentAs);
-            }
-        }
-        if self.btn_exit.mouse_input(button, state, px, py, &mut self.ui_context) {
-            changed = true;
-            if state == ElementState::Released && self.btn_exit.take_click() {
-                msg_out = Some(AppMessage::Exit);
+            if self.menu_dropdown.take_change() {
+                let selected_idx = self.menu_dropdown.selected;
+                if selected_idx < self.menu_dropdown.options.len() {
+                    let option_text = &self.menu_dropdown.options[selected_idx];
+                    match option_text.as_str() {
+                        "New" => {
+                            msg_out = Some(AppMessage::NewDocument);
+                        }
+                        "Open..." => {
+                            msg_out = Some(AppMessage::OpenDocument);
+                        }
+                        "Save" => {
+                            msg_out = Some(AppMessage::SaveDocument);
+                        }
+                        "Save As..." => {
+                            msg_out = Some(AppMessage::SaveDocumentAs);
+                        }
+                        "Exit" => {
+                            msg_out = Some(AppMessage::Exit);
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
 
@@ -579,6 +565,36 @@ impl Application for TextEditorApp {
                         handled = true;
                     }
                     _ => {}
+                }
+            }
+        }
+
+        if !handled {
+            if self.menu_dropdown.keyboard_input(event, &mut self.ui_context) {
+                handled = true;
+                if self.menu_dropdown.take_change() {
+                    let selected_idx = self.menu_dropdown.selected;
+                    if selected_idx < self.menu_dropdown.options.len() {
+                        let option_text = &self.menu_dropdown.options[selected_idx];
+                        match option_text.as_str() {
+                            "New" => {
+                                msg_out = Some(AppMessage::NewDocument);
+                            }
+                            "Open..." => {
+                                msg_out = Some(AppMessage::OpenDocument);
+                            }
+                            "Save" => {
+                                msg_out = Some(AppMessage::SaveDocument);
+                            }
+                            "Save As..." => {
+                                msg_out = Some(AppMessage::SaveDocumentAs);
+                            }
+                            "Exit" => {
+                                msg_out = Some(AppMessage::Exit);
+                            }
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
