@@ -496,16 +496,14 @@ impl Application for TextEditorApp {
                     }
                 }
             }
-        }
-
-        if self.editor.mouse_input(button, state, px, py, &mut self.ui_context) {
+        } else if self.editor.mouse_input(button, state, px, py, &mut self.ui_context) {
             changed = true;
         } else if state == ElementState::Pressed && button == MouseButton::Left {
             self.editor.unfocus();
             changed = true;
         }
 
-        if changed {
+        if changed || msg_out.is_some() {
             *needs_rebuild = true;
             self.needs_rebuild = true;
         }
