@@ -36,6 +36,7 @@ struct TextEditorApp {
     ctrl_pressed: bool,
     initial_focus: bool,
     status_message: Option<(String, bool)>,
+    widgets_registered: bool,
 }
 
 impl TextEditorApp {
@@ -279,6 +280,7 @@ impl Application for TextEditorApp {
             ctrl_pressed: false,
             initial_focus: true,
             status_message: None,
+            widgets_registered: false,
         }
     }
 
@@ -366,6 +368,15 @@ impl Application for TextEditorApp {
     fn tick(&mut self, _dt: f32, _needs_rebuild: &mut bool) {}
 
     fn view(&mut self, quads: &mut Vec<(f32, f32, f32, f32, [f32; 4])>, size: LogicalSize, scale: f64) {
+        if !self.widgets_registered {
+            self.widgets_registered = true;
+            let self_ptr = self as *mut Self;
+            unsafe {
+                self.ui_context.register_widget(self.menu_dropdown.base().unwrap().id(), &mut (*self_ptr).menu_dropdown as *mut Dropdown as *mut (dyn Element + 'static));
+                self.ui_context.register_widget(self.editor.base().unwrap().id(), &mut (*self_ptr).editor as *mut TextBox as *mut (dyn Element + 'static));
+            }
+        }
+
         if self.initial_focus {
             self.initial_focus = false;
             self.ui_context.set_focused(&mut self.editor);
@@ -388,6 +399,8 @@ impl Application for TextEditorApp {
 
             self.rebuild_text_items();
             self.needs_rebuild = false;
+
+            self.ui_context.rebuild_spatial_grid();
         }
 
         let radius = cce_ui::colors::backplate_corner_radius();
