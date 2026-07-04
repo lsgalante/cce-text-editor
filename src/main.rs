@@ -390,16 +390,22 @@ impl Application for TextEditorApp {
             self.needs_rebuild = false;
         }
 
-        // 1. Editor Window Background (slate-dark design)
-        quads.push((0.0, 0.0, self.width as f32, self.height as f32, [0.05, 0.05, 0.07, 1.0]));
+        let radius = cce_ui::colors::backplate_corner_radius();
+        if radius <= 0.1 {
+            // 1. Editor Window Background (slate-dark design)
+            quads.push((0.0, 0.0, self.width as f32, self.height as f32, [0.05, 0.05, 0.07, 1.0]));
 
-        // 2. Toolbar Header quads
-        quads.push((0.0, 0.0, self.width as f32, 42.0, [0.08, 0.08, 0.12, 1.0]));
+            // 2. Toolbar Header quads
+            quads.push((0.0, 0.0, self.width as f32, 42.0, [0.08, 0.08, 0.12, 1.0]));
+
+            // 3. Status Bar quads
+            let status_y = self.height as f32 - 30.0;
+            quads.push((0.0, status_y, self.width as f32, 30.0, [0.08, 0.08, 0.10, 1.0]));
+        }
+
+        // Horizontal split lines (borders)
         quads.push((0.0, 42.0, self.width as f32, 1.0, [0.18, 0.18, 0.22, 1.0]));
-
-        // 3. Status Bar quads
         let status_y = self.height as f32 - 30.0;
-        quads.push((0.0, status_y, self.width as f32, 30.0, [0.08, 0.08, 0.10, 1.0]));
         quads.push((0.0, status_y, self.width as f32, 1.0, [0.18, 0.18, 0.22, 1.0]));
 
         // 4. Menu dropdown graphics
@@ -418,6 +424,19 @@ impl Application for TextEditorApp {
     }
 
     fn view_rounded_quads(&mut self, quads: &mut Vec<(f32, f32, f32, f32, f32, [f32; 4], (bool, bool, bool, bool))>, _size: LogicalSize, _scale: f64) {
+        let radius = cce_ui::colors::backplate_corner_radius();
+        if radius > 0.1 {
+            // 1. Editor Window Background (rounded)
+            quads.push((0.0, 0.0, self.width as f32, self.height as f32, radius, [0.05, 0.05, 0.07, 1.0], (true, true, true, true)));
+
+            // 2. Toolbar Header (rounded at top)
+            quads.push((0.0, 0.0, self.width as f32, 42.0, radius, [0.08, 0.08, 0.12, 1.0], (true, true, false, false)));
+
+            // 3. Status Bar (rounded at bottom)
+            let status_y = self.height as f32 - 30.0;
+            quads.push((0.0, status_y, self.width as f32, 30.0, radius, [0.08, 0.08, 0.10, 1.0], (false, false, true, true)));
+        }
+
         quads.extend(self.menu_dropdown.all_rounded_quads(&self.ui_context));
         quads.extend(self.editor.all_rounded_quads(&self.ui_context));
     }
