@@ -450,6 +450,38 @@ impl Application for TextEditorApp {
         quads.extend(self.editor.all_rounded_quads(&self.ui_context));
     }
 
+    fn display_list(&mut self) -> Option<cce_ui::scene::paint::DisplayList> {
+        // Phase 3 single paint path. This app composes its own chrome plus two top-level widgets
+        // (menu_dropdown, editor) rather than a root_window tree, so build the display list here:
+        // chrome quads first, then walk each widget into it. CCE_LEGACY_PAINT falls back.
+        if std::env::var("CCE_LEGACY_PAINT").is_ok() {
+            return None;
+        }
+        use cce_ui::scene::layout::Rect;
+        let mut pc = cce_ui::scene::paint::PaintCtx::new();
+        let w = self.width as f32;
+        let h = self.height as f32;
+        let status_y = h - 30.0;
+        let radius = cce_ui::colors::backplate_corner_radius();
+        if radius > 0.1 {
+            pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: w, height: h }, radius, (true, true, true, true), [0.05, 0.05, 0.07, 1.0]);
+            pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: w, height: 42.0 }, radius, (true, true, false, false), [0.08, 0.08, 0.12, 1.0]);
+            pc.rounded_rect(Rect { x: 0.0, y: status_y, width: w, height: 30.0 }, radius, (false, false, true, true), [0.08, 0.08, 0.10, 1.0]);
+        } else {
+            pc.quad(Rect { x: 0.0, y: 0.0, width: w, height: h }, [0.05, 0.05, 0.07, 1.0]);
+            pc.quad(Rect { x: 0.0, y: 0.0, width: w, height: 42.0 }, [0.08, 0.08, 0.12, 1.0]);
+            pc.quad(Rect { x: 0.0, y: status_y, width: w, height: 30.0 }, [0.08, 0.08, 0.10, 1.0]);
+        }
+        pc.quad(Rect { x: 0.0, y: 42.0, width: w, height: 1.0 }, [0.18, 0.18, 0.22, 1.0]);
+        pc.quad(Rect { x: 0.0, y: status_y, width: w, height: 1.0 }, [0.18, 0.18, 0.22, 1.0]);
+
+        let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
+        let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, menu, &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, editor, &mut pc);
+        Some(pc.finish())
+    }
+
     fn render_popovers(&self, pc: &mut dyn cce_ui::layout::RenderTarget) {
         cce_ui::layout::render_popovers(pc, &self.ui_context);
     }
