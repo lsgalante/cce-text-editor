@@ -17,7 +17,7 @@ enum AppMessage {
 
 struct TextEditorApp {
     // File menu dropdown
-    menu_dropdown: Dropdown,
+    menu_dropdown: cce_ui::widget::Adapted<Dropdown>,
     
     // Editor TextBox
     editor: TextBox,
@@ -368,7 +368,7 @@ impl Application for TextEditorApp {
             self.widgets_registered = true;
             let self_ptr = self as *mut Self;
             unsafe {
-                self.ui_context.register_widget(self.menu_dropdown.base().unwrap().id(), &mut (*self_ptr).menu_dropdown as *mut Dropdown as *mut (dyn Element + 'static));
+                self.ui_context.register_widget(self.menu_dropdown.base().unwrap().id(), (*self_ptr).menu_dropdown.as_ptr_mut());
                 self.ui_context.register_widget(self.editor.base().unwrap().id(), &mut (*self_ptr).editor as *mut TextBox as *mut (dyn Element + 'static));
             }
         }
