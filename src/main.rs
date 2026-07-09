@@ -450,7 +450,7 @@ impl Application for TextEditorApp {
         quads.extend(self.editor.all_rounded_quads(&self.ui_context));
     }
 
-    fn display_list(&mut self) -> Option<cce_ui::scene::paint::DisplayList> {
+    fn display_list(&mut self, _size: cce_ui::engine::LogicalSize, _scale: f64) -> Option<cce_ui::scene::paint::DisplayList> {
         // Phase 3 single paint path. This app composes its own chrome plus two top-level widgets
         // (menu_dropdown, editor) rather than a root_window tree, so build the display list here:
         // chrome quads first, then walk each widget into it. CCE_LEGACY_PAINT falls back.
