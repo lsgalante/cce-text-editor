@@ -20,7 +20,7 @@ struct TextEditorApp {
     menu_dropdown: cce_ui::widget::Adapted<Dropdown>,
     
     // Editor TextBox
-    editor: TextBox,
+    editor: cce_ui::widget::Adapted<TextBox>,
     
     // File state
     current_file_path: Option<std::path::PathBuf>,
@@ -306,7 +306,7 @@ impl Application for TextEditorApp {
                 self.status_message = None;
 
                 self.ui_context.set_focused(&mut self.editor);
-                TextBox::focus(&mut self.editor);
+                Element::focus(&mut self.editor);
 
                 *needs_rebuild = true;
                 self.needs_rebuild = true;
@@ -324,7 +324,7 @@ impl Application for TextEditorApp {
                             self.status_message = Some((format!("Opened {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
 
                             self.ui_context.set_focused(&mut self.editor);
-                            TextBox::focus(&mut self.editor);
+                            Element::focus(&mut self.editor);
                         }
                         Err(e) => {
                             self.status_message = Some((format!("Error opening file: {}", e), true));
@@ -369,14 +369,14 @@ impl Application for TextEditorApp {
             let self_ptr = self as *mut Self;
             unsafe {
                 self.ui_context.register_widget(self.menu_dropdown.base().unwrap().id(), (*self_ptr).menu_dropdown.as_ptr_mut());
-                self.ui_context.register_widget(self.editor.base().unwrap().id(), &mut (*self_ptr).editor as *mut TextBox as *mut (dyn Element + 'static));
+                self.ui_context.register_widget(self.editor.base().unwrap().id(), (*self_ptr).editor.as_ptr_mut());
             }
         }
 
         if self.initial_focus {
             self.initial_focus = false;
             self.ui_context.set_focused(&mut self.editor);
-            TextBox::focus(&mut self.editor);
+            Element::focus(&mut self.editor);
             self.needs_rebuild = true;
         }
         let size_changed = self.width != size.width as u32 || self.height != size.height as u32 || self.scale_factor != scale;
