@@ -355,12 +355,13 @@ impl Application for TextEditorApp {
             self.ui_context.rebuild_spatial_grid();
         }
 
-        // Popovers registration (since this app bypasses the layout engine)
+        // Popover registration — ui_context ONLY (drives the engine's dl-text occlusion
+        // clamp). The popover itself draws into this display list below; the global
+        // registry fed the engine's render-only xdg popup, which this app no longer uses.
         self.ui_context.clear_popovers();
         cce_ui::widget::popovers::clear();
         if self.menu_dropdown.popover_rect().is_some() {
             self.ui_context.register_popover(&self.menu_dropdown);
-            cce_ui::widget::popovers::register(&self.menu_dropdown);
         }
 
         use cce_ui::scene::layout::Rect;
@@ -387,15 +388,32 @@ impl Application for TextEditorApp {
         let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
         cce_ui::scene::painter::paint_root_into(&self.ui_context, menu, &mut pc);
         cce_ui::scene::painter::paint_root_into(&self.ui_context, editor, &mut pc);
+
+        // The menu popover — geometry and labels last, on top of everything, exactly where
+        // it hit-tests (the engine xdg popup is gone). Labels carry bounds equal to the
+        // popover rect: clips them to the plate and exempts them from the occlusion clamp
+        // (the is-overlay-text convention).
+        if let Some((px, py, pw, ph)) = self.menu_dropdown.popover_rect() {
+            let mut coll = cce_ui::layout::PopoverCollector::new();
+            self.menu_dropdown.render_popover(&mut coll);
+            for &(c, x, y, qw, qh) in &coll.rects {
+                pc.quad(Rect { x, y, width: qw, height: qh }, c);
+            }
+            let pop_bounds = Some([px, py, px + pw, py + ph]);
+            for (content, size, tx, ty, color, font, _bounds) in coll.texts {
+                let color_u8 = [
+                    (color[0] * 255.0).clamp(0.0, 255.0) as u8,
+                    (color[1] * 255.0).clamp(0.0, 255.0) as u8,
+                    (color[2] * 255.0).clamp(0.0, 255.0) as u8,
+                ];
+                pc.text_with(content, tx, ty, size, color_u8, font, pop_bounds);
+            }
+        }
         Some(pc.finish())
     }
 
     fn display_list_text(&self) -> bool {
         true
-    }
-
-    fn render_popovers(&self, pc: &mut dyn cce_ui::layout::RenderTarget) {
-        cce_ui::layout::render_popovers(pc, &self.ui_context);
     }
 
     fn handle_pointer_move(&mut self, pos: LogicalPosition, needs_rebuild: &mut bool) {
