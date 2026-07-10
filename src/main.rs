@@ -396,7 +396,6 @@ impl Application for TextEditorApp {
         // clamp). The popover itself draws into this display list below; the global
         // registry fed the engine's render-only xdg popup, which this app no longer uses.
         self.ui_context.clear_popovers();
-        cce_ui::widget::popovers::clear();
         if self.menu_dropdown.popover_rect().is_some() {
             self.ui_context.register_popover(&self.menu_dropdown);
         }
