@@ -340,13 +340,50 @@ impl Application for TextEditorApp {
             self.height = size.height as u32;
             self.scale_factor = scale;
 
-            // Set menu dropdown dimensions and coordinates
-            self.menu_dropdown.set_rect(10.0, 8.0, 70.0, 26.0);
-
-            // TextBox occupies the remaining space between the top bar and status bar
-            let editor_w = (self.width as f32 - 20.0).max(100.0);
-            let editor_h = (self.height as f32 - 92.0).max(100.0);
-            self.editor.set_rect(10.0, 52.0, editor_w, editor_h);
+            // Layout via the scene solver (Phase 6ab — the routed-events/scene-layout
+            // reference): the frame is a stretched column [top bar (fixed 42, padded
+            // 10/8, holding the fixed menu leaf), content (grow, padded 10, holding the
+            // editor), status bar (fixed 30)]. Solves to the exact legacy rects
+            // (menu 10,8 70x26; editor 10,52 (w-20)x(h-92)) with the mins the old
+            // hand-math clamped by.
+            {
+                use cce_ui::scene::arena::Arena;
+                use cce_ui::scene::layout::{
+                    compute_layout, CrossAlign, Edges, LayoutBox, Length, Size as LSize, Style,
+                };
+                let mut arena: Arena<LayoutBox> = Arena::new();
+                let root = arena.insert(LayoutBox::container(
+                    Style::column().cross_align(CrossAlign::Stretch),
+                ));
+                let top_bar = arena.insert(LayoutBox::container({
+                    let mut s = Style::row().height(Length::Fixed(42.0));
+                    s.padding = Edges { left: 10.0, right: 10.0, top: 8.0, bottom: 8.0 };
+                    s
+                }));
+                let menu = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(70.0, 26.0)));
+                let content = arena.insert(LayoutBox::container(
+                    Style::column().grow(1.0).padding(10.0).cross_align(CrossAlign::Stretch),
+                ));
+                let editor = arena.insert(LayoutBox::container({
+                    let mut s = Style::column().grow(1.0);
+                    s.min_width = 100.0;
+                    s.min_height = 100.0;
+                    s
+                }));
+                let status = arena.insert(LayoutBox::container(
+                    Style::column().height(Length::Fixed(30.0)),
+                ));
+                arena.append_child(root, top_bar);
+                arena.append_child(top_bar, menu);
+                arena.append_child(root, content);
+                arena.append_child(content, editor);
+                arena.append_child(root, status);
+                compute_layout(&mut arena, root, LSize::new(self.width as f32, self.height as f32));
+                let m = arena.value(menu).unwrap().rect;
+                self.menu_dropdown.set_rect(m.x, m.y, m.width, m.height);
+                let e = arena.value(editor).unwrap().rect;
+                self.editor.set_rect(e.x, e.y, e.width, e.height);
+            }
 
             // Glyph-advance shaping — load-bearing for cursor↔pixel mapping.
             self.editor.prepare_text(&mut self.font_system);
@@ -421,9 +458,13 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
-        if self.menu_dropdown.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
-        
-        if self.editor.on_cursor_moved(px, py, &mut self.ui_context) { changed = true; }
+        // Routed dispatch (Phase 6ab): one Event through the UiContext router per root;
+        // PointerMove visits both (hover bookkeeping + the router's drag forwarding).
+        let ev = cce_ui::widget::Event::PointerMove { x: px, y: py, local_x: px, local_y: py };
+        let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
+        let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+        if self.ui_context.propagate_event(&ev, menu) { changed = true; }
+        if self.ui_context.propagate_event(&ev, editor) { changed = true; }
 
         if changed {
             *needs_rebuild = true;
@@ -437,33 +478,17 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
-        if self.menu_dropdown.mouse_input(button, state, px, py, &mut self.ui_context) {
+        // Routed dispatch (Phase 6ab): the router hit-gates presses, synthesizes
+        // Enter/Leave, and records drag targets; the app keeps only take_change plumbing.
+        let ev = cce_ui::widget::Event::MouseButton { button, state, x: px, y: py, local_x: px, local_y: py };
+        let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
+        let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+        if self.ui_context.propagate_event(&ev, menu) {
             changed = true;
             if self.menu_dropdown.take_change() {
-                let selected_idx = self.menu_dropdown.selected;
-                if selected_idx < self.menu_dropdown.options.len() {
-                    let option_text = &self.menu_dropdown.options[selected_idx];
-                    match option_text.as_str() {
-                        "New" => {
-                            msg_out = Some(AppMessage::NewDocument);
-                        }
-                        "Open..." => {
-                            msg_out = Some(AppMessage::OpenDocument);
-                        }
-                        "Save" => {
-                            msg_out = Some(AppMessage::SaveDocument);
-                        }
-                        "Save As..." => {
-                            msg_out = Some(AppMessage::SaveDocumentAs);
-                        }
-                        "Exit" => {
-                            msg_out = Some(AppMessage::Exit);
-                        }
-                        _ => {}
-                    }
-                }
+                msg_out = self.menu_action();
             }
-        } else if self.editor.mouse_input(button, state, px, py, &mut self.ui_context) {
+        } else if self.ui_context.propagate_event(&ev, editor) {
             changed = true;
         } else if state == ElementState::Pressed && button == MouseButton::Left {
             self.editor.unfocus();
@@ -553,38 +578,18 @@ impl Application for TextEditorApp {
             }
         }
 
+        // Routed dispatch (Phase 6ab): the router delivers KeyInput to the ctx-focused
+        // widget first (the editor while it holds focus), then descends the root.
         if !handled {
-            if self.menu_dropdown.keyboard_input(event, &mut self.ui_context) {
+            let ev = cce_ui::widget::Event::KeyInput(event.clone());
+            let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
+            let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+            if self.ui_context.propagate_event(&ev, menu) {
                 handled = true;
                 if self.menu_dropdown.take_change() {
-                    let selected_idx = self.menu_dropdown.selected;
-                    if selected_idx < self.menu_dropdown.options.len() {
-                        let option_text = &self.menu_dropdown.options[selected_idx];
-                        match option_text.as_str() {
-                            "New" => {
-                                msg_out = Some(AppMessage::NewDocument);
-                            }
-                            "Open..." => {
-                                msg_out = Some(AppMessage::OpenDocument);
-                            }
-                            "Save" => {
-                                msg_out = Some(AppMessage::SaveDocument);
-                            }
-                            "Save As..." => {
-                                msg_out = Some(AppMessage::SaveDocumentAs);
-                            }
-                            "Exit" => {
-                                msg_out = Some(AppMessage::Exit);
-                            }
-                            _ => {}
-                        }
-                    }
+                    msg_out = self.menu_action();
                 }
-            }
-        }
-
-        if !handled {
-            if self.editor.keyboard_input(event, &mut self.ui_context) {
+            } else if self.ui_context.propagate_event(&ev, editor) {
                 handled = true;
             }
         }
@@ -595,6 +600,20 @@ impl Application for TextEditorApp {
         }
 
         msg_out
+    }
+}
+
+impl TextEditorApp {
+    /// Map the File menu's selected option to its app command.
+    fn menu_action(&self) -> Option<AppMessage> {
+        match self.menu_dropdown.options.get(self.menu_dropdown.selected).map(String::as_str) {
+            Some("New") => Some(AppMessage::NewDocument),
+            Some("Open...") => Some(AppMessage::OpenDocument),
+            Some("Save") => Some(AppMessage::SaveDocument),
+            Some("Save As...") => Some(AppMessage::SaveDocumentAs),
+            Some("Exit") => Some(AppMessage::Exit),
+            _ => None,
+        }
     }
 }
 
