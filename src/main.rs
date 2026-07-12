@@ -2,7 +2,7 @@ use wayland_client::QueueHandle;
 use glyphon::FontSystem;
 use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::widget::{
-    MouseButton, ElementState, MouseScrollDelta, KeyEvent, Element,
+    MouseButton, ElementState, MouseScrollDelta, KeyEvent, WidgetHost,
     TextBox, Key, Dropdown
 };
 
@@ -258,7 +258,7 @@ impl Application for TextEditorApp {
                 self.status_message = None;
 
                 self.ui_context.set_focused(&mut self.editor);
-                Element::focus(&mut self.editor);
+                WidgetHost::focus(&mut self.editor);
 
                 *needs_rebuild = true;
                 self.needs_rebuild = true;
@@ -276,7 +276,7 @@ impl Application for TextEditorApp {
                             self.status_message = Some((format!("Opened {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
 
                             self.ui_context.set_focused(&mut self.editor);
-                            Element::focus(&mut self.editor);
+                            WidgetHost::focus(&mut self.editor);
                         }
                         Err(e) => {
                             self.status_message = Some((format!("Error opening file: {}", e), true));
@@ -331,7 +331,7 @@ impl Application for TextEditorApp {
         if self.initial_focus {
             self.initial_focus = false;
             self.ui_context.set_focused(&mut self.editor);
-            Element::focus(&mut self.editor);
+            WidgetHost::focus(&mut self.editor);
             self.needs_rebuild = true;
         }
         let size_changed = self.width != size.width as u32 || self.height != size.height as u32 || self.scale_factor != scale;
@@ -420,8 +420,8 @@ impl Application for TextEditorApp {
 
         self.push_chrome_text(&mut pc);
 
-        let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
-        let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+        let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
+        let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
         cce_ui::scene::painter::paint_root_into(&self.ui_context, menu, &mut pc);
         cce_ui::scene::painter::paint_root_into(&self.ui_context, editor, &mut pc);
 
@@ -460,8 +460,8 @@ impl Application for TextEditorApp {
         // Routed dispatch (Phase 6ab): one Event through the UiContext router per root;
         // PointerMove visits both (hover bookkeeping + the router's drag forwarding).
         let ev = cce_ui::widget::Event::PointerMove { x: px, y: py, local_x: px, local_y: py };
-        let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
-        let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+        let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
+        let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
         if self.ui_context.propagate_event(&ev, menu) { changed = true; }
         if self.ui_context.propagate_event(&ev, editor) { changed = true; }
 
@@ -480,8 +480,8 @@ impl Application for TextEditorApp {
         // Routed dispatch (Phase 6ab): the router hit-gates presses, synthesizes
         // Enter/Leave, and records drag targets; the app keeps only take_change plumbing.
         let ev = cce_ui::widget::Event::MouseButton { button, state, x: px, y: py, local_x: px, local_y: py };
-        let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
-        let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+        let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
+        let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
         if self.ui_context.propagate_event(&ev, menu) {
             changed = true;
             if self.menu_dropdown.take_change() {
@@ -581,8 +581,8 @@ impl Application for TextEditorApp {
         // widget first (the editor while it holds focus), then descends the root.
         if !handled {
             let ev = cce_ui::widget::Event::KeyInput(event.clone());
-            let menu: *mut (dyn cce_ui::widget::Element + 'static) = self.menu_dropdown.as_ptr_mut();
-            let editor: *mut (dyn cce_ui::widget::Element + 'static) = self.editor.as_ptr_mut();
+            let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
+            let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
             if self.ui_context.propagate_event(&ev, menu) {
                 handled = true;
                 if self.menu_dropdown.take_change() {
