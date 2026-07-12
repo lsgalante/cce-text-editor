@@ -323,8 +323,8 @@ impl Application for TextEditorApp {
             self.widgets_registered = true;
             let self_ptr = self as *mut Self;
             unsafe {
-                self.ui_context.register_widget(self.menu_dropdown.base().unwrap().id(), (*self_ptr).menu_dropdown.as_ptr_mut());
-                self.ui_context.register_widget(self.editor.base().unwrap().id(), (*self_ptr).editor.as_ptr_mut());
+                self.ui_context.register_widget(self.menu_dropdown.base().id(), (*self_ptr).menu_dropdown.as_ptr_mut());
+                self.ui_context.register_widget(self.editor.base().id(), (*self_ptr).editor.as_ptr_mut());
             }
         }
 
