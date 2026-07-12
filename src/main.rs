@@ -397,7 +397,7 @@ impl Application for TextEditorApp {
         // registry fed the engine's render-only xdg popup, which this app no longer uses.
         self.ui_context.clear_popovers();
         if self.menu_dropdown.popover_rect().is_some() {
-            self.ui_context.register_popover(&self.menu_dropdown);
+            self.ui_context.register_popover(&mut self.menu_dropdown);
         }
 
         use cce_ui::scene::layout::Rect;
