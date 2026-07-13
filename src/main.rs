@@ -420,10 +420,8 @@ impl Application for TextEditorApp {
 
         self.push_chrome_text(&mut pc);
 
-        let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
-        let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, menu, &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, editor, &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.menu_dropdown, &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.editor, &mut pc);
 
         // The menu popover — geometry and labels last, on top of everything, exactly where
         // it hit-tests (the engine xdg popup is gone). Labels carry bounds equal to the
