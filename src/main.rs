@@ -460,8 +460,8 @@ impl Application for TextEditorApp {
         // Routed dispatch (Phase 6ab): one Event through the UiContext router per root;
         // PointerMove visits both (hover bookkeeping + the router's drag forwarding).
         let ev = cce_ui::widget::Event::PointerMove { x: px, y: py, local_x: px, local_y: py };
-        let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
-        let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
+        let menu = self.menu_dropdown.id();
+        let editor = self.editor.id();
         if self.ui_context.propagate_event(&ev, menu) { changed = true; }
         if self.ui_context.propagate_event(&ev, editor) { changed = true; }
 
@@ -480,8 +480,8 @@ impl Application for TextEditorApp {
         // Routed dispatch (Phase 6ab): the router hit-gates presses, synthesizes
         // Enter/Leave, and records drag targets; the app keeps only take_change plumbing.
         let ev = cce_ui::widget::Event::MouseButton { button, state, x: px, y: py, local_x: px, local_y: py };
-        let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
-        let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
+        let menu = self.menu_dropdown.id();
+        let editor = self.editor.id();
         if self.ui_context.propagate_event(&ev, menu) {
             changed = true;
             if self.menu_dropdown.take_change() {
@@ -581,8 +581,8 @@ impl Application for TextEditorApp {
         // widget first (the editor while it holds focus), then descends the root.
         if !handled {
             let ev = cce_ui::widget::Event::KeyInput(event.clone());
-            let menu: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.menu_dropdown.as_ptr_mut();
-            let editor: *mut (dyn cce_ui::widget::WidgetHost + 'static) = self.editor.as_ptr_mut();
+            let menu = self.menu_dropdown.id();
+            let editor = self.editor.id();
             if self.ui_context.propagate_event(&ev, menu) {
                 handled = true;
                 if self.menu_dropdown.take_change() {
