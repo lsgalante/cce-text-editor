@@ -15,7 +15,30 @@ enum AppMessage {
     SaveDocumentAs,
 }
 
+/// App shortcuts, resolved once at startup from input.kdl
+/// (`cce-text-editor` domain → `cce-ui` domain).
+struct EditorKeys {
+    new_document: String,
+    open_document: String,
+    save_document: String,
+    quit: String,
+}
+
+impl EditorKeys {
+    fn load() -> Self {
+        let get = cce_ui::input::app_chord;
+        Self {
+            new_document: get("new_document", "ctrl+n"),
+            open_document: get("open_document", "ctrl+o"),
+            save_document: get("save_document", "ctrl+s"),
+            quit: get("quit", "ctrl+q"),
+        }
+    }
+}
+
 struct TextEditorApp {
+    keys: EditorKeys,
+
     // File menu dropdown
     menu_dropdown: cce_ui::widget::Adapted<Dropdown>,
     
@@ -216,6 +239,7 @@ impl Application for TextEditorApp {
         }
 
         Self {
+            keys: EditorKeys::load(),
             menu_dropdown,
             editor,
             current_file_path,
@@ -538,26 +562,27 @@ impl Application for TextEditorApp {
         let mut handled = false;
         let mut msg_out = None;
 
-        // Custom keyboard shortcuts
-        if event.ctrl && event.state == ElementState::Pressed {
+        // Custom keyboard shortcuts (input.kdl `cce-text-editor` domain);
+        // the font-size chords stay hardcoded (+/= don't round-trip chords).
+        if event.state == ElementState::Pressed {
+            let m = |chord: &str| cce_ui::widget::match_key_shortcut(event, chord);
+            if m(&self.keys.new_document) {
+                msg_out = Some(AppMessage::NewDocument);
+                handled = true;
+            } else if m(&self.keys.open_document) {
+                msg_out = Some(AppMessage::OpenDocument);
+                handled = true;
+            } else if m(&self.keys.save_document) {
+                msg_out = Some(AppMessage::SaveDocument);
+                handled = true;
+            } else if m(&self.keys.quit) {
+                msg_out = Some(AppMessage::Exit);
+                handled = true;
+            }
+        }
+        if !handled && event.ctrl && event.state == ElementState::Pressed {
             if let Key::Character(ref ch) = event.logical_key {
                 match ch.to_lowercase().as_str() {
-                    "n" => {
-                        msg_out = Some(AppMessage::NewDocument);
-                        handled = true;
-                    }
-                    "o" => {
-                        msg_out = Some(AppMessage::OpenDocument);
-                        handled = true;
-                    }
-                    "s" => {
-                        msg_out = Some(AppMessage::SaveDocument);
-                        handled = true;
-                    }
-                    "q" => {
-                        msg_out = Some(AppMessage::Exit);
-                        handled = true;
-                    }
                     "=" | "+" => {
                         self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
                         *needs_rebuild = true;
