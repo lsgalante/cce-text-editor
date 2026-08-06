@@ -451,21 +451,10 @@ impl Application for TextEditorApp {
         // it hit-tests (the engine xdg popup is gone). Labels carry bounds equal to the
         // popover rect: clips them to the plate and exempts them from the occlusion clamp
         // (the is-overlay-text convention).
-        if let Some((px, py, pw, ph)) = self.menu_dropdown.popover_rect() {
-            let mut coll = cce_ui::layout::PopoverCollector::new();
-            self.menu_dropdown.render_popover(&mut coll);
-            for &(c, x, y, qw, qh) in &coll.rects {
-                pc.quad(Rect { x, y, width: qw, height: qh }, c);
-            }
-            let pop_bounds = Some([px, py, px + pw, py + ph]);
-            for (content, size, tx, ty, color, font, _bounds) in coll.texts {
-                let color_u8 = [
-                    (color[0] * 255.0).clamp(0.0, 255.0) as u8,
-                    (color[1] * 255.0).clamp(0.0, 255.0) as u8,
-                    (color[2] * 255.0).clamp(0.0, 255.0) as u8,
-                ];
-                pc.text_with(content, tx, ty, size, color_u8, font, pop_bounds);
-            }
+        if self.menu_dropdown.popover_rect().is_some() {
+            // PaintCtx is a RenderTarget: the popover draws its real prims (the
+            // dropdown's expanded inset-plate surface) with its own bounds.
+            self.menu_dropdown.render_popover(&mut pc);
         }
         Some(pc.finish())
     }
