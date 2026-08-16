@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Clear Text Editor
+Comment=Text editor for clear-ui
+Exec=cce-text-editor %F
+Icon=accessories-text-editor
+Categories=Utility;TextEditor;Development;
+Terminal=false
+StartupNotify=true
+StartupWMClass=cce-text-editor
+MimeType=text/plain;
