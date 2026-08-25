@@ -429,7 +429,8 @@ impl Application for TextEditorApp {
         let w = self.width as f32;
         let h = self.height as f32;
         let status_y = h - 30.0;
-        let radius = cce_ui::colors::root_plate_corner_radius();
+        // Silhouette radius (cce-ui RFC 7b): matches the compositor clip.
+        let radius = cce_ui::layout::window_silhouette_radius();
         if radius > 0.1 {
             pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: w, height: h }, radius, (true, true, true, true), [0.05, 0.05, 0.07, 1.0]);
             pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: w, height: 42.0 }, radius, (true, true, false, false), [0.08, 0.08, 0.12, 1.0]);
