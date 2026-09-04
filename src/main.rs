@@ -514,7 +514,7 @@ impl Application for TextEditorApp {
         msg_out
     }
 
-    fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, _pos: LogicalPosition, needs_rebuild: &mut bool) {
+    fn handle_mouse_wheel(&mut self, delta: &MouseScrollDelta, pos: LogicalPosition, needs_rebuild: &mut bool) {
         if self.ctrl_pressed {
             match delta {
                 MouseScrollDelta::LineDelta(_, y) => {
@@ -535,6 +535,19 @@ impl Application for TextEditorApp {
                     *needs_rebuild = true;
                     self.needs_rebuild = true;
                 }
+            }
+        } else {
+            // Plain wheel: routed to the editor, whose TextBox owns the
+            // document scroll (glide and coast included — its tick runs
+            // through the runner's ui_context tick). Nothing forwarded it
+            // before, so the wheel over the document was dead.
+            let px = pos.x as f32;
+            let py = pos.y as f32;
+            let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: px, y: py, local_x: px, local_y: py };
+            let editor = self.editor.id();
+            if self.ui_context.propagate_event(&ev, editor) {
+                *needs_rebuild = true;
+                self.needs_rebuild = true;
             }
         }
     }
