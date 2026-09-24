@@ -6,6 +6,11 @@ use cce_ui::widget::{
     TextBox, Key, Dropdown
 };
 
+/// The menubar and status bands' heights (sizes, not spacing — the ladder
+/// supplies the insets and gaps around and inside them).
+const MENUBAR_H: f32 = 42.0;
+const STATUSBAR_H: f32 = 30.0;
+
 #[derive(Debug, Clone)]
 enum AppMessage {
     Exit,
@@ -151,6 +156,8 @@ impl TextEditorApp {
         } else {
             file_name_str
         };
+        // TODO(style): an absolute x for the file label; it should sit one
+        // `root_plate_gap` after the menu's solved rect, like a toolbar sibling.
         pc.text_with(format!("File: {}", display_name), 420.0, 15.0, 12.0, [0xdd, 0xdd, 0xe2], mono(), None);
 
         // 2. Status Bar indicators
@@ -170,7 +177,7 @@ impl TextEditorApp {
         }
         pc.text_with(
             format!("Line: {}, Col: {} | Length: {} chars", logical_line, logical_col, text_src.chars().count()),
-            15.0,
+            cce_ui::layout::root_plate_inset(),
             self.height as f32 - 20.0,
             11.0,
             [0x83, 0x83, 0x8a],
@@ -214,7 +221,9 @@ impl Application for TextEditorApp {
             "Exit".to_string(),
         ];
         let mut menu_dropdown = Dropdown::new(dropdown_options, 0).with_custom_display_text("File");
-        menu_dropdown.set_rect(10.0, 8.0, 70.0, 26.0);
+        // Placeholder rect until the first frame's layout solve assigns the real one:
+        // inset from the window edge by the root rung, centred in the 42px menubar band.
+        menu_dropdown.set_rect(cce_ui::layout::root_plate_inset(), (MENUBAR_H - 26.0) / 2.0, 70.0, 26.0);
 
         // Monospace textbox setup
         let mut editor = TextBox::new(String::new())
@@ -365,29 +374,43 @@ impl Application for TextEditorApp {
             self.scale_factor = scale;
 
             // Layout via the scene solver (Phase 6ab — the routed-events/scene-layout
-            // reference): the frame is a stretched column [top bar (fixed 42, padded
-            // 10/8, holding the fixed menu leaf), content (grow, padded 10, holding the
-            // editor), status bar (fixed 30)]. Solves to the exact legacy rects
-            // (menu 10,8 70x26; editor 10,52 (w-20)x(h-92)) with the mins the old
-            // hand-math clamped by.
+            // reference): the frame is a stretched column [menubar band (fixed
+            // MENUBAR_H, holding the fixed menu leaf), content (grow, holding the
+            // editor), status band (fixed STATUSBAR_H)].
+            //
+            // Spacing by rung, never by number. The root column itself carries no
+            // inset: both bands are flush to the window edge by design (the
+            // MenuBar/StatusBar band idiom), so the root rung is applied to what
+            // stands between and inside them instead — the menu and the editor
+            // inset from the window's sides by `root_plate_inset`, and the editor
+            // stands off each band by `root_plate_gap`, the gap between siblings
+            // on the root plate. The menu centres in its band rather than carrying
+            // a vertical padding.
             {
                 use cce_ui::scene::arena::Arena;
                 use cce_ui::scene::layout::{
                     compute_layout, CrossAlign, Edges, LayoutBox, Length, Size as LSize, Style,
                 };
+                let inset = cce_ui::layout::root_plate_inset();
+                let gap = cce_ui::layout::root_plate_gap();
                 let mut arena: Arena<LayoutBox> = Arena::new();
                 let root = arena.insert(LayoutBox::container(
                     Style::column().cross_align(CrossAlign::Stretch),
                 ));
                 let top_bar = arena.insert(LayoutBox::container({
-                    let mut s = Style::row().height(Length::Fixed(42.0));
-                    s.padding = Edges { left: 10.0, right: 10.0, top: 8.0, bottom: 8.0 };
+                    let mut s = Style::row()
+                        .height(Length::Fixed(MENUBAR_H))
+                        .gap(gap)
+                        .cross_align(CrossAlign::Center);
+                    s.padding = Edges { left: inset, right: inset, top: 0.0, bottom: 0.0 };
                     s
                 }));
                 let menu = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(70.0, 26.0)));
-                let content = arena.insert(LayoutBox::container(
-                    Style::column().grow(1.0).padding(10.0).cross_align(CrossAlign::Stretch),
-                ));
+                let content = arena.insert(LayoutBox::container({
+                    let mut s = Style::column().grow(1.0).cross_align(CrossAlign::Stretch);
+                    s.padding = Edges { left: inset, right: inset, top: gap, bottom: gap };
+                    s
+                }));
                 let editor = arena.insert(LayoutBox::container({
                     let mut s = Style::column().grow(1.0);
                     s.min_width = 100.0;
@@ -395,7 +418,7 @@ impl Application for TextEditorApp {
                     s
                 }));
                 let status = arena.insert(LayoutBox::container(
-                    Style::column().height(Length::Fixed(30.0)),
+                    Style::column().height(Length::Fixed(STATUSBAR_H)),
                 ));
                 arena.append_child(root, top_bar);
                 arena.append_child(top_bar, menu);
@@ -428,19 +451,24 @@ impl Application for TextEditorApp {
         let mut pc = cce_ui::scene::paint::PaintCtx::new();
         let w = self.width as f32;
         let h = self.height as f32;
-        let status_y = h - 30.0;
+        let status_y = h - STATUSBAR_H;
         // The standard root plate (cce-ui PlateSpec::window).
         pc.root_plate(w, h);
         // Silhouette radius (cce-ui RFC 7b): matches the compositor clip.
+        // TODO(style): these bands are flat fills over the plate; the toolkit's
+        // idiom for a menubar/status band is a carve (`recess_edges` with
+        // `bar_wall_width`, one wall facing the content, as cce-ui's demo does).
+        // Switching drops the bands' own fill colour, so it is a look change,
+        // not a spacing one, and is left for a deliberate pass.
         let radius = cce_ui::layout::window_silhouette_radius();
         if radius > 0.1 {
-            pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: w, height: 42.0 }, radius, (true, true, false, false), [0.08, 0.08, 0.12, 1.0]);
-            pc.rounded_rect(Rect { x: 0.0, y: status_y, width: w, height: 30.0 }, radius, (false, false, true, true), [0.08, 0.08, 0.10, 1.0]);
+            pc.rounded_rect(Rect { x: 0.0, y: 0.0, width: w, height: MENUBAR_H }, radius, (true, true, false, false), [0.08, 0.08, 0.12, 1.0]);
+            pc.rounded_rect(Rect { x: 0.0, y: status_y, width: w, height: STATUSBAR_H }, radius, (false, false, true, true), [0.08, 0.08, 0.10, 1.0]);
         } else {
-            pc.quad(Rect { x: 0.0, y: 0.0, width: w, height: 42.0 }, [0.08, 0.08, 0.12, 1.0]);
-            pc.quad(Rect { x: 0.0, y: status_y, width: w, height: 30.0 }, [0.08, 0.08, 0.10, 1.0]);
+            pc.quad(Rect { x: 0.0, y: 0.0, width: w, height: MENUBAR_H }, [0.08, 0.08, 0.12, 1.0]);
+            pc.quad(Rect { x: 0.0, y: status_y, width: w, height: STATUSBAR_H }, [0.08, 0.08, 0.10, 1.0]);
         }
-        pc.quad(Rect { x: 0.0, y: 42.0, width: w, height: 1.0 }, [0.18, 0.18, 0.22, 1.0]);
+        pc.quad(Rect { x: 0.0, y: MENUBAR_H, width: w, height: 1.0 }, [0.18, 0.18, 0.22, 1.0]);
         pc.quad(Rect { x: 0.0, y: status_y, width: w, height: 1.0 }, [0.18, 0.18, 0.22, 1.0]);
 
         self.push_chrome_text(&mut pc);
