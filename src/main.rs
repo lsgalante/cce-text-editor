@@ -223,7 +223,8 @@ impl Application for TextEditorApp {
         let mut menu_dropdown = Dropdown::new(dropdown_options, 0).with_custom_display_text("File");
         // Placeholder rect until the first frame's layout solve assigns the real one:
         // inset from the window edge by the root rung, centred in the 42px menubar band.
-        menu_dropdown.set_rect(cce_ui::layout::root_plate_inset(), (MENUBAR_H - 26.0) / 2.0, 70.0, 26.0);
+        let dd_h = cce_ui::layout::dropdown_height();
+        menu_dropdown.set_rect(cce_ui::layout::root_plate_inset(), (MENUBAR_H - dd_h) / 2.0, 70.0, dd_h);
 
         // Monospace textbox setup
         let mut editor = TextBox::new(String::new())
@@ -405,7 +406,7 @@ impl Application for TextEditorApp {
                     s.padding = Edges { left: inset, right: inset, top: 0.0, bottom: 0.0 };
                     s
                 }));
-                let menu = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(70.0, 26.0)));
+                let menu = arena.insert(LayoutBox::leaf(Style::row(), LSize::new(70.0, cce_ui::layout::dropdown_height())));
                 let content = arena.insert(LayoutBox::container({
                     let mut s = Style::column().grow(1.0).cross_align(CrossAlign::Stretch);
                     s.padding = Edges { left: inset, right: inset, top: gap, bottom: gap };
