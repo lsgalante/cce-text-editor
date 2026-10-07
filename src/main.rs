@@ -355,11 +355,8 @@ impl Application for TextEditorApp {
         // Widget text comes from the paint walk (Adapted::paint_self serves per-widget fonts).
         if !self.widgets_registered {
             self.widgets_registered = true;
-            let self_ptr = self as *mut Self;
-            unsafe {
-                self.ui_context.register_widget(self.menu_dropdown.base().id(), (*self_ptr).menu_dropdown.as_ptr_mut());
-                self.ui_context.register_widget(self.editor.base().id(), (*self_ptr).editor.as_ptr_mut());
-            }
+            self.ui_context.register_host(&mut self.menu_dropdown);
+            self.ui_context.register_host(&mut self.editor);
         }
 
         if self.initial_focus {
