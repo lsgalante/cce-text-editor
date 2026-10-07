@@ -498,6 +498,16 @@ impl Application for TextEditorApp {
         let px = pos.x as f32;
         let py = pos.y as f32;
 
+        // The shared context menu (the editor's, the File menu's) gets the
+        // pointer to itself while open: its row highlight.
+        if cce_ui::widget::context_menu::is_visible() {
+            if cce_ui::widget::context_menu::cursor_moved(px, py) {
+                *needs_rebuild = true;
+                self.needs_rebuild = true;
+            }
+            return;
+        }
+
         // Routed dispatch (Phase 6ab): one Event through the UiContext router per root;
         // PointerMove visits both (hover bookkeeping + the router's drag forwarding).
         let ev = cce_ui::widget::Event::PointerMove { x: px, y: py, local_x: px, local_y: py };
@@ -517,6 +527,20 @@ impl Application for TextEditorApp {
         let mut msg_out = None;
         let px = pos.x as f32;
         let py = pos.y as f32;
+
+        // The shared context menu a right-click on the editor or the File menu
+        // opens takes every click while open, ahead of the File menu's own list:
+        // a row (Cut / Copy / Paste / Select All) runs, a press anywhere else
+        // dismisses it. The toolkit leaves this routing to the app; without it
+        // the menu could not be closed by clicking outside it, and its rows did
+        // nothing.
+        if cce_ui::widget::context_menu::is_visible() {
+            if cce_ui::widget::context_menu::mouse_input(button, state, px, py, Some(&mut self.ui_context)) {
+                *needs_rebuild = true;
+                self.needs_rebuild = true;
+            }
+            return None;
+        }
 
         // Routed dispatch (Phase 6ab): the router hit-gates presses, synthesizes
         // Enter/Leave, and records drag targets; the app keeps only take_change plumbing.
