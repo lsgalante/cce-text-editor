@@ -552,7 +552,7 @@ impl Application for TextEditorApp {
         } else if self.ui_context.propagate_event(&ev, editor) {
             changed = true;
         } else if state == ElementState::Pressed && button == MouseButton::Left {
-            self.editor.unfocus();
+            self.ui_context.unfocus_widget(&mut self.editor);
             changed = true;
         }
 
