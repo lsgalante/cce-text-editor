@@ -1,4 +1,5 @@
 use wayland_client::QueueHandle;
+use cce_ui::widget::Owned;
 use cce_ui::cosmic_text::FontSystem;
 use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::widget::{
@@ -45,10 +46,10 @@ struct TextEditorApp {
     keys: EditorKeys,
 
     // File menu dropdown
-    menu_dropdown: cce_ui::widget::Adapted<Dropdown>,
+    menu_dropdown: Owned<cce_ui::widget::Adapted<Dropdown>>,
     
     // Editor TextBox
-    editor: cce_ui::widget::Adapted<TextBox>,
+    editor: Owned<cce_ui::widget::Adapted<TextBox>>,
     
     // File state
     current_file_path: Option<std::path::PathBuf>,
@@ -250,8 +251,8 @@ impl Application for TextEditorApp {
 
         Self {
             keys: EditorKeys::load(),
-            menu_dropdown,
-            editor,
+            menu_dropdown: Owned::new(menu_dropdown),
+            editor: Owned::new(editor),
             current_file_path,
             width: 800,
             height: 600,
