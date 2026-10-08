@@ -1,7 +1,6 @@
-use wayland_client::QueueHandle;
 use cce_ui::widget::Owned;
 use cce_ui::cosmic_text::FontSystem;
-use cce_ui::engine::{Application, EngineState, LogicalPosition, LogicalSize, WindowSettings};
+use cce_ui::engine::{Application, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::widget::{
     MouseButton, ElementState, MouseScrollDelta, KeyEvent, WidgetHost,
     TextBox, Key, Dropdown
@@ -212,7 +211,7 @@ impl Application for TextEditorApp {
         Some(&mut self.ui_context)
     }
 
-    fn new(_qh: &QueueHandle<EngineState<Self>>, _sender: calloop::channel::Sender<Self::Message>) -> Self {
+    fn create(_sender: cce_ui::engine::AppSender<Self::Message>) -> Self {
         let dropdown_options = vec![
             "New".to_string(),
             "Open...".to_string(),
