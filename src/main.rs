@@ -1,4 +1,4 @@
-use cce_ui::widget::Owned;
+use cce_ui::widget::Handle;
 use cce_ui::cosmic_text::FontSystem;
 use cce_ui::engine::{Application, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::widget::{
@@ -45,10 +45,10 @@ struct TextEditorApp {
     keys: EditorKeys,
 
     // File menu dropdown
-    menu_dropdown: Owned<cce_ui::widget::Adapted<Dropdown>>,
+    menu_dropdown: Handle<cce_ui::widget::Adapted<Dropdown>>,
     
     // Editor TextBox
-    editor: Owned<cce_ui::widget::Adapted<TextBox>>,
+    editor: Handle<cce_ui::widget::Adapted<TextBox>>,
     
     // File state
     current_file_path: Option<std::path::PathBuf>,
@@ -65,7 +65,6 @@ struct TextEditorApp {
     ctrl_pressed: bool,
     initial_focus: bool,
     status_message: Option<(String, bool)>,
-    widgets_registered: bool,
 }
 
 impl TextEditorApp {
@@ -115,12 +114,13 @@ impl TextEditorApp {
             });
 
         if let Some(path) = path_opt {
-            let content = if self.editor.editing { &self.editor.edit_buffer } else { &self.editor.text };
+            let editor = &self.ui_context[self.editor];
+            let content = if editor.editing { &editor.edit_buffer } else { &editor.text };
             match std::fs::write(&path, content) {
                 Ok(_) => {
                     self.current_file_path = Some(path.clone());
-                    if self.editor.editing {
-                        self.editor.text = self.editor.edit_buffer.clone();
+                    if self.ui_context[self.editor].editing {
+                        self.ui_context[self.editor].text = self.ui_context[self.editor].edit_buffer.clone();
                     }
                     self.status_message = Some((format!("Saved successfully to {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
                     *needs_rebuild = true;
@@ -142,8 +142,8 @@ impl TextEditorApp {
         let mono = || Some(cce_ui::layout::get_system_monospace_font().to_string());
 
         // 1. File path info in the toolbar
-        let is_dirty = if self.editor.editing {
-            self.editor.text != self.editor.edit_buffer
+        let is_dirty = if self.ui_context[self.editor].editing {
+            self.ui_context[self.editor].text != self.ui_context[self.editor].edit_buffer
         } else {
             false
         };
@@ -161,11 +161,11 @@ impl TextEditorApp {
         pc.text_with(format!("File: {}", display_name), 420.0, 15.0, 12.0, [0xdd, 0xdd, 0xe2], mono(), None);
 
         // 2. Status Bar indicators
-        let text_src = if self.editor.editing { &self.editor.edit_buffer } else { &self.editor.text };
+        let text_src = if self.ui_context[self.editor].editing { &self.ui_context[self.editor].edit_buffer } else { &self.ui_context[self.editor].text };
         let mut logical_line = 1;
         let mut logical_col = 1;
         for (idx, ch) in text_src.chars().enumerate() {
-            if idx >= self.editor.cursor_idx {
+            if idx >= self.ui_context[self.editor].cursor_idx {
                 break;
             }
             if ch == '\n' {
@@ -248,21 +248,22 @@ impl Application for TextEditorApp {
             }
         }
 
+        // The context owns the widgets; the app keeps their handles.
+        let mut ui_context = cce_ui::context::UiContext::new();
         Self {
             keys: EditorKeys::load(),
-            menu_dropdown: Owned::new(menu_dropdown),
-            editor: Owned::new(editor),
+            menu_dropdown: ui_context.insert(menu_dropdown),
+            editor: ui_context.insert(editor),
             current_file_path,
             width: 800,
             height: 600,
             scale_factor: 1.0,
             font_system: cce_ui::create_font_system_with_system_fonts(),
             needs_rebuild: true,
-            ui_context: cce_ui::context::UiContext::new(),
+            ui_context,
             ctrl_pressed: false,
             initial_focus: true,
             status_message: None,
-            widgets_registered: false,
         }
     }
 
@@ -283,16 +284,17 @@ impl Application for TextEditorApp {
                 *exit = true;
             }
             AppMessage::NewDocument => {
-                self.editor.text = String::new();
-                self.editor.edit_buffer = String::new();
-                self.editor.editing = false;
-                self.editor.cursor_idx = 0;
-                self.editor.select_anchor = None;
+                let editor = &mut self.ui_context[self.editor];
+                editor.text = String::new();
+                editor.edit_buffer = String::new();
+                editor.editing = false;
+                editor.cursor_idx = 0;
+                editor.select_anchor = None;
                 self.current_file_path = None;
                 self.status_message = None;
 
-                self.ui_context.set_focused(&mut self.editor);
-                WidgetHost::focus(&mut self.editor);
+                self.ui_context.set_focused_id(self.editor.id());
+                WidgetHost::focus(&mut self.ui_context[self.editor]);
 
                 *needs_rebuild = true;
                 self.needs_rebuild = true;
@@ -301,16 +303,17 @@ impl Application for TextEditorApp {
                 if let Some(path) = self.pick_file_to_open() {
                     match std::fs::read_to_string(&path) {
                         Ok(content) => {
-                            self.editor.text = content;
-                            self.editor.edit_buffer = self.editor.text.clone();
-                            self.editor.cursor_idx = 0;
-                            self.editor.select_anchor = None;
-                            self.editor.editing = false;
+                            let editor = &mut self.ui_context[self.editor];
+                            editor.text = content;
+                            editor.edit_buffer = editor.text.clone();
+                            editor.cursor_idx = 0;
+                            editor.select_anchor = None;
+                            editor.editing = false;
                             self.current_file_path = Some(path.clone());
                             self.status_message = Some((format!("Opened {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
 
-                            self.ui_context.set_focused(&mut self.editor);
-                            WidgetHost::focus(&mut self.editor);
+                            self.ui_context.set_focused_id(self.editor.id());
+                            WidgetHost::focus(&mut self.ui_context[self.editor]);
                         }
                         Err(e) => {
                             self.status_message = Some((format!("Error opening file: {}", e), true));
@@ -323,11 +326,11 @@ impl Application for TextEditorApp {
             AppMessage::SaveDocument => {
                 if self.current_file_path.is_some() {
                     let path = self.current_file_path.clone().unwrap();
-                    let content = if self.editor.editing { &self.editor.edit_buffer } else { &self.editor.text };
+                    let content = if self.ui_context[self.editor].editing { &self.ui_context[self.editor].edit_buffer } else { &self.ui_context[self.editor].text };
                     match std::fs::write(&path, content) {
                         Ok(_) => {
-                            if self.editor.editing {
-                                self.editor.text = self.editor.edit_buffer.clone();
+                            if self.ui_context[self.editor].editing {
+                                self.ui_context[self.editor].text = self.ui_context[self.editor].edit_buffer.clone();
                             }
                             self.status_message = Some((format!("Saved successfully to {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
                         }
@@ -353,16 +356,10 @@ impl Application for TextEditorApp {
         // Phase 6 single paint path: the whole frame — chrome geometry, chrome text, and the
         // two top-level widgets (menu_dropdown, editor) walked into the list — is built here.
         // Widget text comes from the paint walk (Adapted::paint_self serves per-widget fonts).
-        if !self.widgets_registered {
-            self.widgets_registered = true;
-            self.ui_context.register_host(&mut self.menu_dropdown);
-            self.ui_context.register_host(&mut self.editor);
-        }
-
         if self.initial_focus {
             self.initial_focus = false;
-            self.ui_context.set_focused(&mut self.editor);
-            WidgetHost::focus(&mut self.editor);
+            self.ui_context.set_focused_id(self.editor.id());
+            WidgetHost::focus(&mut self.ui_context[self.editor]);
             self.needs_rebuild = true;
         }
         let size_changed = self.width != size.width as u32 || self.height != size.height as u32 || self.scale_factor != scale;
@@ -425,13 +422,13 @@ impl Application for TextEditorApp {
                 arena.append_child(root, status);
                 compute_layout(&mut arena, root, LSize::new(self.width as f32, self.height as f32));
                 let m = arena.value(menu).unwrap().rect;
-                self.menu_dropdown.set_rect(m.x, m.y, m.width, m.height);
+                self.ui_context[self.menu_dropdown].set_rect(m.x, m.y, m.width, m.height);
                 let e = arena.value(editor).unwrap().rect;
-                self.editor.set_rect(e.x, e.y, e.width, e.height);
+                self.ui_context[self.editor].set_rect(e.x, e.y, e.width, e.height);
             }
 
             // Glyph-advance shaping — load-bearing for cursor↔pixel mapping.
-            self.editor.prepare_text(&mut self.font_system);
+            self.ui_context[self.editor].prepare_text(&mut self.font_system);
             self.needs_rebuild = false;
 
             self.ui_context.rebuild_spatial_grid();
@@ -441,8 +438,8 @@ impl Application for TextEditorApp {
         // clamp). The popover itself draws into this display list below; the global
         // registry fed the engine's render-only xdg popup, which this app no longer uses.
         self.ui_context.clear_popovers();
-        if self.menu_dropdown.popover_rect().is_some() {
-            self.ui_context.register_popover(&mut self.menu_dropdown);
+        if self.ui_context[self.menu_dropdown].popover_rect().is_some() {
+            self.ui_context.register_popover_id(self.menu_dropdown.id());
         }
 
         use cce_ui::scene::layout::Rect;
@@ -471,17 +468,17 @@ impl Application for TextEditorApp {
 
         self.push_chrome_text(&mut pc);
 
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.menu_dropdown, &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.editor, &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.menu_dropdown], &mut pc);
+        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.editor], &mut pc);
 
         // The menu popover — geometry and labels last, on top of everything, exactly where
         // it hit-tests (the engine xdg popup is gone). Labels carry bounds equal to the
         // popover rect: clips them to the plate and exempts them from the occlusion clamp
         // (the is-overlay-text convention).
-        if self.menu_dropdown.popover_rect().is_some() {
+        if self.ui_context[self.menu_dropdown].popover_rect().is_some() {
             // PaintCtx is a RenderTarget: the popover draws its real prims (the
             // dropdown's expanded inset-plate surface) with its own bounds.
-            self.menu_dropdown.render_popover(&mut pc);
+            self.ui_context[self.menu_dropdown].render_popover(&mut pc);
         }
         Some(pc.finish())
     }
@@ -546,13 +543,13 @@ impl Application for TextEditorApp {
         let editor = self.editor.id();
         if self.ui_context.propagate_event(&ev, menu) {
             changed = true;
-            if self.menu_dropdown.take_change() {
+            if self.ui_context[self.menu_dropdown].take_change() {
                 msg_out = self.menu_action();
             }
         } else if self.ui_context.propagate_event(&ev, editor) {
             changed = true;
         } else if state == ElementState::Pressed && button == MouseButton::Left {
-            self.ui_context.unfocus_widget(&mut self.editor);
+            self.ui_context.unfocus_id(self.editor.id());
             changed = true;
         }
 
@@ -569,18 +566,18 @@ impl Application for TextEditorApp {
             match delta {
                 MouseScrollDelta::LineDelta(_, y) => {
                     if *y > 0.0 {
-                        self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
+                        self.ui_context[self.editor].font_size = (self.ui_context[self.editor].font_size + 1.0).min(72.0);
                     } else if *y < 0.0 {
-                        self.editor.font_size = (self.editor.font_size - 1.0).max(6.0);
+                        self.ui_context[self.editor].font_size = (self.ui_context[self.editor].font_size - 1.0).max(6.0);
                     }
                     *needs_rebuild = true;
                     self.needs_rebuild = true;
                 }
                 MouseScrollDelta::PixelDelta(pos) => {
                     if pos.y > 0.0 {
-                        self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
+                        self.ui_context[self.editor].font_size = (self.ui_context[self.editor].font_size + 1.0).min(72.0);
                     } else if pos.y < 0.0 {
-                        self.editor.font_size = (self.editor.font_size - 1.0).max(6.0);
+                        self.ui_context[self.editor].font_size = (self.ui_context[self.editor].font_size - 1.0).max(6.0);
                     }
                     *needs_rebuild = true;
                     self.needs_rebuild = true;
@@ -637,13 +634,13 @@ impl Application for TextEditorApp {
             if let Key::Character(ref ch) = event.logical_key {
                 match ch.to_lowercase().as_str() {
                     "=" | "+" => {
-                        self.editor.font_size = (self.editor.font_size + 1.0).min(72.0);
+                        self.ui_context[self.editor].font_size = (self.ui_context[self.editor].font_size + 1.0).min(72.0);
                         *needs_rebuild = true;
                         self.needs_rebuild = true;
                         handled = true;
                     }
                     "-" | "_" => {
-                        self.editor.font_size = (self.editor.font_size - 1.0).max(6.0);
+                        self.ui_context[self.editor].font_size = (self.ui_context[self.editor].font_size - 1.0).max(6.0);
                         *needs_rebuild = true;
                         self.needs_rebuild = true;
                         handled = true;
@@ -661,7 +658,7 @@ impl Application for TextEditorApp {
             let editor = self.editor.id();
             if self.ui_context.propagate_event(&ev, menu) {
                 handled = true;
-                if self.menu_dropdown.take_change() {
+                if self.ui_context[self.menu_dropdown].take_change() {
                     msg_out = self.menu_action();
                 }
             } else if self.ui_context.propagate_event(&ev, editor) {
@@ -681,7 +678,7 @@ impl Application for TextEditorApp {
 impl TextEditorApp {
     /// Map the File menu's selected option to its app command.
     fn menu_action(&self) -> Option<AppMessage> {
-        match self.menu_dropdown.options.get(self.menu_dropdown.selected).map(String::as_str) {
+        match self.ui_context[self.menu_dropdown].options.get(self.ui_context[self.menu_dropdown].selected).map(String::as_str) {
             Some("New") => Some(AppMessage::NewDocument),
             Some("Open...") => Some(AppMessage::OpenDocument),
             Some("Save") => Some(AppMessage::SaveDocument),
