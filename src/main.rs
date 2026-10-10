@@ -468,8 +468,8 @@ impl Application for TextEditorApp {
 
         self.push_chrome_text(&mut pc);
 
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.menu_dropdown], &mut pc);
-        cce_ui::scene::painter::paint_root_into(&self.ui_context, &self.ui_context[self.editor], &mut pc);
+        cce_ui::widget::painter::paint_root_into(&self.ui_context, &self.ui_context[self.menu_dropdown], &mut pc);
+        cce_ui::widget::painter::paint_root_into(&self.ui_context, &self.ui_context[self.editor], &mut pc);
 
         // The menu popover — geometry and labels last, on top of everything, exactly where
         // it hit-tests (the engine xdg popup is gone). Labels carry bounds equal to the
