@@ -2,7 +2,7 @@ use cce_ui::widget::Handle;
 use cce_ui::cosmic_text::FontSystem;
 use cce_ui::engine::{Application, LogicalPosition, LogicalSize, WindowSettings};
 use cce_ui::widget::{
-    MouseButton, ElementState, MouseScrollDelta, KeyEvent, WidgetHost,
+    MouseButton, ElementState, MouseScrollDelta, KeyEvent, WidgetEvent, WidgetHost,
     TextBox, Key, Dropdown
 };
 
@@ -537,15 +537,13 @@ impl Application for TextEditorApp {
         }
 
         // Routed dispatch (Phase 6ab): the router hit-gates presses, synthesizes
-        // Enter/Leave, and records drag targets; the app keeps only take_change plumbing.
+        // Enter/Leave, and records drag targets; the app keeps only the event sweep.
         let ev = cce_ui::widget::Event::MouseButton { button, state, x: px, y: py, local_x: px, local_y: py };
         let menu = self.menu_dropdown.id();
         let editor = self.editor.id();
         if self.ui_context.propagate_event(&ev, menu) {
             changed = true;
-            if self.ui_context[self.menu_dropdown].take_change() {
-                msg_out = self.menu_action();
-            }
+            msg_out = self.drain_widget_events();
         } else if self.ui_context.propagate_event(&ev, editor) {
             changed = true;
         } else if state == ElementState::Pressed && button == MouseButton::Left {
@@ -658,9 +656,7 @@ impl Application for TextEditorApp {
             let editor = self.editor.id();
             if self.ui_context.propagate_event(&ev, menu) {
                 handled = true;
-                if self.ui_context[self.menu_dropdown].take_change() {
-                    msg_out = self.menu_action();
-                }
+                msg_out = self.drain_widget_events();
             } else if self.ui_context.propagate_event(&ev, editor) {
                 handled = true;
             }
@@ -676,6 +672,21 @@ impl Application for TextEditorApp {
 }
 
 impl TextEditorApp {
+    /// The File menu's pick since the last sweep (`UiContext::take_events`),
+    /// as its command. Run where the menu took an event — a press, or a key
+    /// while it holds the keyboard — the only ways it is picked from; the
+    /// editor's own reports are not used.
+    fn drain_widget_events(&mut self) -> Option<AppMessage> {
+        let mut msg = None;
+        for (id, ev) in self.ui_context.take_events() {
+            match ev {
+                WidgetEvent::Changed if id == self.menu_dropdown.id() => msg = self.menu_action(),
+                _ => {}
+            }
+        }
+        msg
+    }
+
     /// Map the File menu's selected option to its app command.
     fn menu_action(&self) -> Option<AppMessage> {
         match self.ui_context[self.menu_dropdown].options.get(self.ui_context[self.menu_dropdown].selected).map(String::as_str) {
