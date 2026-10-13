@@ -476,7 +476,7 @@ impl Application for TextEditorApp {
         // popover rect: clips them to the plate and exempts them from the occlusion clamp
         // (the is-overlay-text convention).
         if self.ui_context[self.menu_dropdown].popover_rect().is_some() {
-            // PaintCtx is a RenderTarget: the popover draws its real prims (the
+            // The popover paints into the frame's PaintCtx: its real prims (the
             // dropdown's expanded inset-plate surface) with its own bounds.
             self.ui_context[self.menu_dropdown].render_popover(&mut pc);
         }
