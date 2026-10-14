@@ -489,8 +489,8 @@ impl Application for TextEditorApp {
 
     fn handle_pointer_move(&mut self, pos: LogicalPosition, needs_rebuild: &mut bool) {
         let mut changed = false;
-        let px = pos.x as f32;
-        let py = pos.y as f32;
+        let px = pos.x;
+        let py = pos.y;
 
         // The shared context menu (the editor's, the File menu's) gets the
         // pointer to itself while open: its row highlight.
@@ -519,8 +519,8 @@ impl Application for TextEditorApp {
     fn handle_mouse_input(&mut self, button: MouseButton, state: ElementState, pos: LogicalPosition, needs_rebuild: &mut bool) -> Option<Self::Message> {
         let mut changed = false;
         let mut msg_out = None;
-        let px = pos.x as f32;
-        let py = pos.y as f32;
+        let px = pos.x;
+        let py = pos.y;
 
         // The shared context menu a right-click on the editor or the File menu
         // opens takes every click while open, ahead of the File menu's own list:
@@ -586,8 +586,8 @@ impl Application for TextEditorApp {
             // document scroll (glide and coast included — its tick runs
             // through the runner's ui_context tick). Nothing forwarded it
             // before, so the wheel over the document was dead.
-            let px = pos.x as f32;
-            let py = pos.y as f32;
+            let px = pos.x;
+            let py = pos.y;
             let ev = cce_ui::widget::Event::MouseWheel { delta: *delta, x: px, y: py, local_x: px, local_y: py };
             let editor = self.editor.id();
             if self.ui_context.propagate_event(&ev, editor) {
