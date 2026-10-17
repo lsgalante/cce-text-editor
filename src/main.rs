@@ -1,3 +1,5 @@
+mod ui_state;
+
 use cce_ui::widget::Handle;
 use cce_ui::cosmic_text::FontSystem;
 use cce_ui::engine::{Application, LogicalPosition, LogicalSize, WindowSettings};
@@ -65,6 +67,8 @@ struct TextEditorApp {
     ctrl_pressed: bool,
     initial_focus: bool,
     status_message: Option<(String, bool)>,
+    /// The caret and scroll to put back once the editor is laid out (`ui_state`).
+    restore: Option<(usize, f32)>,
 }
 
 impl TextEditorApp {
@@ -122,6 +126,8 @@ impl TextEditorApp {
                     if self.ui_context[self.editor].editing {
                         self.ui_context[self.editor].text = self.ui_context[self.editor].edit_buffer.clone();
                     }
+                    let editor = &self.ui_context[self.editor];
+                    ui_state::save(Some(&path), editor.cursor_idx, editor.scroll_y);
                     self.status_message = Some((format!("Saved successfully to {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
                     *needs_rebuild = true;
                     self.needs_rebuild = true;
@@ -234,17 +240,18 @@ impl Application for TextEditorApp {
         editor.font_family = "monospace".to_string();
         editor.font_size = 13.0;
 
-        // Auto-open path if passed as argv[1]
-        let args: Vec<String> = std::env::args().collect();
+        // Open argv[1], or — when this is the same command line reopening —
+        // the file that was open, at its caret and scroll (`ui_state`).
+        let argv_file = std::env::args().nth(1).map(std::path::PathBuf::from);
+        let place = ui_state::initial(argv_file.as_deref());
         let mut current_file_path = None;
-        if args.len() > 1 {
-            let path = std::path::PathBuf::from(&args[1]);
-            if path.exists() {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    editor.text = content;
-                    editor.edit_buffer = editor.text.clone();
-                    current_file_path = Some(path);
-                }
+        let mut restore = None;
+        if let Some(path) = place.file.filter(|p| p.exists()) {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                editor.text = content;
+                editor.edit_buffer = editor.text.clone();
+                current_file_path = Some(path);
+                restore = Some((place.cursor, place.scroll_y));
             }
         }
 
@@ -264,6 +271,7 @@ impl Application for TextEditorApp {
             ctrl_pressed: false,
             initial_focus: true,
             status_message: None,
+            restore,
         }
     }
 
@@ -292,6 +300,7 @@ impl Application for TextEditorApp {
                 editor.select_anchor = None;
                 self.current_file_path = None;
                 self.status_message = None;
+                ui_state::save(None, 0, 0.0);
 
                 self.ui_context.set_focused_id(self.editor.id());
                 WidgetHost::focus(&mut self.ui_context[self.editor]);
@@ -310,6 +319,7 @@ impl Application for TextEditorApp {
                             editor.select_anchor = None;
                             editor.editing = false;
                             self.current_file_path = Some(path.clone());
+                            ui_state::save(Some(&path), 0, 0.0);
                             self.status_message = Some((format!("Opened {}", path.file_name().unwrap_or_default().to_string_lossy()), false));
 
                             self.ui_context.set_focused_id(self.editor.id());
@@ -351,6 +361,12 @@ impl Application for TextEditorApp {
     }
 
     fn tick(&mut self, _dt: f32, _needs_rebuild: &mut bool) {}
+
+    fn on_exit(&mut self) {
+        let editor = &self.ui_context[self.editor];
+        let (cursor, scroll_y) = self.restore.unwrap_or((editor.cursor_idx, editor.scroll_y));
+        ui_state::save(self.current_file_path.as_deref(), cursor, scroll_y);
+    }
 
     fn display_list(&mut self, size: LogicalSize, scale: f64) -> Option<cce_ui::scene::paint::DisplayList> {
         // Phase 6 single paint path: the whole frame — chrome geometry, chrome text, and the
@@ -430,6 +446,19 @@ impl Application for TextEditorApp {
             // Glyph-advance shaping — load-bearing for cursor↔pixel mapping.
             self.ui_context[self.editor].prepare_text(&mut self.font_system);
             self.needs_rebuild = false;
+
+            // The reopened file's caret and scroll, once there is a layout to
+            // clamp them to (the first focus above put the caret at the end).
+            if let Some((cursor, scroll_y)) = self.restore.take() {
+                let editor = &mut self.ui_context[self.editor];
+                let len = if editor.editing { &editor.edit_buffer } else { &editor.text }.chars().count();
+                editor.cursor_idx = cursor.min(len);
+                editor.select_anchor = None;
+                editor.all_selected = false;
+                editor.sync_editor_state();
+                editor.scroll_y = scroll_y;
+                editor.clamp_scroll();
+            }
 
             self.ui_context.rebuild_spatial_grid();
         }
