@@ -33,12 +33,12 @@ struct EditorKeys {
 
 impl EditorKeys {
     fn load() -> Self {
-        let get = cce_ui::input::app_chord;
+        let get = cce_ui::input::app_shortcut;
         Self {
-            new_document: get("new_document", "ctrl+n"),
-            open_document: get("open_document", "ctrl+o"),
-            save_document: get("save_document", "ctrl+s"),
-            quit: get("quit", "ctrl+q"),
+            new_document: get("new_document", "ctrl+n", "New document"),
+            open_document: get("open_document", "ctrl+o", "Open a file"),
+            save_document: get("save_document", "ctrl+s", "Save"),
+            quit: get("quit", "ctrl+q", "Quit"),
         }
     }
 }
